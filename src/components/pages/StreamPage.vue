@@ -3,6 +3,15 @@
 		<div class="col-md-3">
 			<ul class="ul-hidden">
 				<li>
+					<b>Friendly Name</b><br />
+					<input
+						type="text"
+						class="form-control form-control-sm"
+						v-model="friendlyName"
+						placeholder="Enter friendly name"
+					/>
+				</li>
+				<li>
 					<b>Stream ID</b><br />
 					<span class="copy">{{ selectedStream.id }}</span>
 				</li>
@@ -79,6 +88,7 @@
 				</template>
 			</ul>
 		</div>
+
 		<div class="col-md-5">
 			<div class="row" v-if="selectedStream.isSupported">
 				<div
@@ -146,6 +156,7 @@
 				</div>
 			</div>
 		</div>
+
 		<div class="col-md-4">
 			<textarea
 				class="form-control"
@@ -161,13 +172,30 @@
 
 <script>
 import { selectedStream, getTextareaRowNumber } from "../../app.js";
+import { ref, watch } from "vue";
 
 export default {
 	name: "StreamPage",
 	setup() {
+		const friendlyNameKey = `friendly_name_${selectedStream.value.id}`;
+
+		const storedName = localStorage.getItem(friendlyNameKey) || "";
+
+		const friendlyName = ref(storedName);
+
+		// Sync reactive value to selectedStream for display
+		selectedStream.value.friendly_name = friendlyName.value;
+
+		// Watch for changes and persist immediately
+		watch(friendlyName, (newVal) => {
+			selectedStream.value.friendly_name = newVal;
+			localStorage.setItem(friendlyNameKey, newVal);
+		});
+
 		return {
 			selectedStream,
 			getTextareaRowNumber,
+			friendlyName,
 		};
 	},
 };

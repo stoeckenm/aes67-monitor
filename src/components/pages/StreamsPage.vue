@@ -9,6 +9,7 @@
 	<table class="table table-sm table-borderless" id="streams-table">
 		<thead v-if="visibleStreams > 0">
 			<tr>
+				<th>Friendly Name</th>
 				<th @click="setSort('name')" style="cursor: pointer">
 					Name
 					<span v-if="sortKey === 'name'">
@@ -48,11 +49,13 @@
 				<th v-if="streamCount > 0">Channel</th>
 				<th></th>
 				<th></th>
+				<th></th>
 			</tr>
 		</thead>
 		<tbody>
 			<template v-for="stream in sortedStreams" :key="stream.id">
 				<tr>
+					<td>{{ getFriendlyName(stream) }}</td>
 					<td>{{ stream.name }}</td>
 					<td>
 						<span
@@ -156,6 +159,25 @@
 							<i v-else class="bi bi-play-fill"></i>
 						</button>
 					</td>
+
+					<!-- ✅ Favorite Button -->
+					<td>
+						<button
+							class="btn btn-sm btn-outline-warning"
+							@click="toggleFavorite(stream.id)"
+							title="Toggle Favorite"
+						>
+							<i
+								class="bi"
+								:class="
+									isFavorite(stream.id)
+										? 'bi-star-fill text-warning'
+										: 'bi-star'
+								"
+							></i>
+						</button>
+					</td>
+
 					<td>
 						<button class="btn btn-sm btn-primary" @click="viewStream(stream)">
 							<i class="bi bi-info-circle-fill"></i>
@@ -243,22 +265,64 @@ export default {
 			});
 		});
 
+		// ✅ FAVORITES MANAGEMENT
+		const favorites = ref(
+			new Set(JSON.parse(localStorage.getItem("favorites") || "[]"))
+		);
+
+		// Load or assign friendly names from localStorage
+		function getFriendlyName(stream) {
+			const key = `friendly_name_${stream.id}`;
+
+			const stored = localStorage.getItem(key);
+
+			if (stored) {
+				stream.friendly_name = stored;
+			} else if (!stream.friendly_name) {
+				stream.friendly_name = "";
+			}
+			return stream.friendly_name ? `${stream.friendly_name}` : "-";
+		}
+
+		function toggleFavorite(id) {
+			if (favorites.value.has(id)) {
+				favorites.value.delete(id);
+			} else {
+				favorites.value.add(id);
+			}
+			saveFavorites();
+		}
+
+		function isFavorite(id) {
+			return favorites.value.has(id);
+		}
+
+		function saveFavorites() {
+			localStorage.setItem("favorites", JSON.stringify([...favorites.value]));
+		}
+
+		//watch(favorites, saveFavorites, { deep: true });
+
 		return {
 			sortedStreams,
 			setSort,
 			sortKey,
 			sortOrder,
 			searchStreams,
+			favorites,
 			streams,
 			streamCount,
 			viewStream,
 			getChannelSelectValues,
 			selectedChannel,
 			playStream,
+			getFriendlyName,
 			visibleStreams,
 			playing,
 			persistentData,
 			streamIndex,
+			toggleFavorite,
+			isFavorite,
 			getCurrentSupportedSampleRates,
 		};
 	},

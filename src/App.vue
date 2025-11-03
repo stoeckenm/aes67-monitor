@@ -16,6 +16,7 @@ import { persistentData, page } from "./app.js";
 
 import HeaderBar from "./components/HeaderBar.vue";
 import SideBar from "./components/SideBar.vue";
+import Favorites from "./components/pages/FavoritesPage.vue";
 import Streams from "./components/pages/StreamsPage.vue";
 import Stream from "./components/pages/StreamPage.vue";
 import Devices from "./components/pages/DevicesPage.vue";
@@ -39,6 +40,8 @@ export default {
 
 const currentComponent = computed(() => {
 	switch (page.value) {
+		case "favorites":
+			return Favorites;
 		case "streams":
 			return Streams;
 		case "devices":

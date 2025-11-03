@@ -55,7 +55,7 @@ const currentComponent = computed(() => {
 		case "sdp":
 			return Sdp;
 		default:
-			return Streams;
+			return Favorites;
 	}
 });
 </script>

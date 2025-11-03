@@ -113,6 +113,7 @@ export default {
 		const adminMode = ref(
 			JSON.parse(localStorage.getItem("adminMode") || "false")
 		);
+		console.log(localStorage.getItem("adminMode"));
 		const showPasswordInput = ref(false);
 		const password = ref("");
 		const passwordError = ref(false);

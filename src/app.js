@@ -1,11 +1,13 @@
 import { ref, computed } from "vue";
 
-export const page = ref("streams");
+export const page = ref("favorites");
 export const search = ref({ streams: "", interfaces: "", devices: "" });
 export const streamCount = ref(0);
 export const channelCount = ref(0);
 export const interfaceCount = ref(0);
 export const streams = ref([]);
+export const favorites = ref([]);
+export const favoriteCount = ref(0);
 export const streamCountDisplay = ref(true);
 export const audioInterfaces = ref([]);
 export const networkInterfaces = ref([]);
@@ -232,6 +234,7 @@ export const getChannelSelectValues = (stream) => {
 };
 
 export const playStream = (stream) => {
+	getChannelSelectValues(stream);
 	if (playing.value == stream.id) {
 		playing.value = "";
 		sendMessage({ type: "stop" });
@@ -331,6 +334,10 @@ export const saveSettings = () => {
 if (window.electronAPI) {
 	window.electronAPI.recvMessage((message) => {
 		switch (message.type) {
+			case "favorites":
+				favorites.value = message.data;
+				favoriteCount.value = message.data.length;
+				break;
 			case "streams":
 				streams.value = message.data;
 				streamCount.value = message.data.length;

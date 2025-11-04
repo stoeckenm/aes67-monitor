@@ -17,10 +17,19 @@
 				<td>
 					{{ audioInterface.name }}
 					<span
-						class="badge text-bg-success"
+						class="badge"
+						:class="
+							persistentData.settings.followSystemAudio
+								? 'text-bg-danger'
+								: 'text-bg-success'
+						"
 						v-if="audioInterface.isDefaultInput"
-						>Default</span
 					>
+						<span v-if="!persistentData.settings.followSystemAudio"
+							>Default</span
+						>
+						<span v-else>Overwritten</span>
+					</span>
 				</td>
 				<td>{{ audioInterface.inputChannels }}</td>
 				<td>{{ audioInterface.preferredSampleRate }}</td>
@@ -51,15 +60,27 @@
 					{{ audioInterface.name }}
 					<span
 						class="badge text-bg-primary"
-						v-if="audioInterface.isCurrent"
+						v-if="
+							audioInterface.isCurrent &&
+							!persistentData.settings.followSystemAudio
+						"
 						style="margin-right: 5px"
 						>Output</span
 					>
 					<span
-						class="badge text-bg-success"
+						class="badge"
+						:class="
+							persistentData.settings.followSystemAudio
+								? 'text-bg-danger'
+								: 'text-bg-success'
+						"
 						v-if="audioInterface.isDefaultOutput"
-						>Default</span
 					>
+						<span v-if="!persistentData.settings.followSystemAudio"
+							>Default</span
+						>
+						<span v-else>Overwritten</span>
+					</span>
 				</td>
 				<td>{{ audioInterface.outputChannels }}</td>
 				<td>{{ audioInterface.preferredSampleRate }}</td>
@@ -82,6 +103,7 @@
 
 <script>
 import {
+	persistentData,
 	getAudioOutputDevices,
 	getAudioInputDevices,
 	setCurrentAudioInterface,
@@ -91,6 +113,7 @@ export default {
 	name: "InterfacesPage",
 	setup() {
 		return {
+			persistentData,
 			getAudioOutputDevices,
 			getAudioInputDevices,
 			setCurrentAudioInterface,

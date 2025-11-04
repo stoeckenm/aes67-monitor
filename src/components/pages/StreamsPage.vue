@@ -329,4 +329,13 @@ export default {
 };
 </script>
 
-<style></style>
+<style scoped>
+/* Add hover effect for table rows */
+tbody tr td {
+	transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+tbody tr:hover td {
+	background-color: #f0f8ff; /* light blue background on hover */
+}
+</style>

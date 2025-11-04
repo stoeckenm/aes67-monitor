@@ -115,7 +115,6 @@ const start = function (args) {
 	let id;
 	let found = false;
 	let defaultOutputDevice;
-
 	for (let i = 0; i < devices.length; i++) {
 		if (
 			devices[i].name == args.selected.name &&

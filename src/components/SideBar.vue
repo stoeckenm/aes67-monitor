@@ -23,7 +23,7 @@
 			</li>
 
 			<!-- Other pages, visible only if adminMode or not on Favorites -->
-			<template v-if="page !== 'favorites' || adminMode">
+			<template v-if="page !== 'favorites' || persistentData.adminMode">
 				<li id="streams-li" :class="{ active: page === 'streams' }">
 					<a @click="viewPage('streams')">
 						<i class="bi bi-speaker"></i><span>Streams</span>
@@ -66,15 +66,20 @@
 		<div id="admin-toggle" class="mt-auto p-2 text-center">
 			<button
 				class="btn btn-sm"
-				:class="adminMode ? 'btn-danger' : 'btn-outline-secondary'"
+				:class="
+					persistentData.adminMode ? 'btn-danger' : 'btn-outline-secondary'
+				"
 				@click="toggleAdminMode"
 			>
-				<i class="bi" :class="adminMode ? 'bi-lock-fill' : 'bi-unlock'"></i>
-				{{ adminMode ? "Exit Admin" : "Admin" }}
+				<i
+					class="bi"
+					:class="persistentData.adminMode ? 'bi-lock-fill' : 'bi-unlock'"
+				></i>
+				{{ persistentData.adminMode ? "Exit Admin" : "" }}
 			</button>
 
 			<!-- Password input form -->
-			<div v-if="showPasswordInput && !adminMode" class="mt-2">
+			<div v-if="showPasswordInput && !persistentData.adminMode" class="mt-2">
 				<input
 					type="password"
 					v-model="password"
@@ -110,10 +115,13 @@ import { ref, computed } from "vue";
 export default {
 	name: "SideBar",
 	setup() {
-		const adminMode = ref(
-			JSON.parse(localStorage.getItem("adminMode") || "false")
-		);
-		console.log(localStorage.getItem("adminMode"));
+		// Initialize adminMode from localStorage once if undefined
+		if (persistentData.value.adminMode === undefined) {
+			persistentData.value.adminMode = JSON.parse(
+				localStorage.getItem("adminMode") || "false"
+			);
+		}
+
 		const showPasswordInput = ref(false);
 		const password = ref("");
 		const passwordError = ref(false);
@@ -129,8 +137,9 @@ export default {
 
 		// Check password and enable admin mode
 		function checkPassword() {
-			if (password.value === "testtest") {
-				adminMode.value = true;
+			if (password.value === "tomtom") {
+				persistentData.value.adminMode = true;
+
 				localStorage.setItem("adminMode", "true");
 				password.value = "";
 				passwordError.value = false;
@@ -140,17 +149,16 @@ export default {
 			}
 		}
 
-		// Toggle admin mode
+		// Toggle admin mode button
 		function toggleAdminMode() {
-			if (!adminMode.value) {
-				// Show password input
+			if (!persistentData.value.adminMode) {
 				showPasswordInput.value = true;
 			} else {
 				// Exit admin mode: force Favorites page and lock menu
-				adminMode.value = false;
+				persistentData.value.adminMode = false;
 				localStorage.setItem("adminMode", "false");
 				showPasswordInput.value = false;
-				viewPage("favorites"); // go back to favorites
+				viewPage("favorites");
 			}
 		}
 
@@ -163,7 +171,7 @@ export default {
 			searchDevices,
 			visibleStreams,
 			setSidebarStatus,
-			adminMode,
+			adminMode: persistentData.adminMode, // reactive reference
 			showPasswordInput,
 			password,
 			passwordError,

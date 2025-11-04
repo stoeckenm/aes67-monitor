@@ -18,12 +18,14 @@
 			</select>
 		</div>
 		<div class="col-4">
-			<h5 class="mb-3">Audio Buffering</h5>
+			<h5 class="mb-3">Audio</h5>
+			<h6>Buffering</h6>
 			<div class="form-check">
 				<input
 					class="form-check-input"
 					type="checkbox"
 					id="check-buffering"
+					@change="updateAudioInterface()"
 					v-model="persistentData.settings.bufferEnabled"
 				/>
 				<label class="form-check-label" for="check-buffering">
@@ -37,6 +39,20 @@
 					class="form-control"
 				/>
 				<span class="input-group-text">packets</span>
+			</div>
+			<h6>Hardware</h6>
+			<div class="form-check">
+				<input
+					class="form-check-input"
+					type="checkbox"
+					id="check-follow-system-audio"
+					v-model="persistentData.settings.followSystemAudio"
+					@change="updateAudioInterface()"
+				/>
+				<label class="form-check-label" for="check-follow-system-audio">
+					Always use default audio
+					<span class="form-text">(follow system audio)</span>
+				</label>
 			</div>
 		</div>
 		<div class="col-4">
@@ -84,7 +100,11 @@
 </template>
 
 <script>
-import { persistentData, networkInterfaces } from "../../app.js";
+import {
+	persistentData,
+	networkInterfaces,
+	updateAudioInterface,
+} from "../../app.js";
 
 export default {
 	name: "SettingsPage",
@@ -92,6 +112,7 @@ export default {
 		return {
 			persistentData,
 			networkInterfaces,
+			updateAudioInterface,
 		};
 	},
 };

@@ -10,53 +10,62 @@
 		</span>
 	</div>
 
-	<!-- Grid of favorites -->
-	<div v-if="favoriteStreams.length > 0" class="row g-3">
-		<div
-			v-for="stream in sortedStreams"
-			:key="stream.id"
-			class="col-12 col-sm-6 col-md-4 col-lg-3"
-		>
-			<div class="card shadow-sm h-100">
-				<div class="card-body d-flex flex-column justify-content-between">
-					<div>
-						<h6 class="card-title text-truncate mb-1">
-							{{ getFriendlyName(stream) }}
-						</h6>
-						<small class="text-muted d-block text-truncate">
-							{{ stream.origin.address }}
-						</small>
-						<small v-if="stream.isSupported" class="text-muted d-block">
-							{{ stream.codec }} / {{ stream.samplerate }}Hz /
-							{{ stream.channels }}
-						</small>
-						<small v-else class="text-danger">Unsupported</small>
-					</div>
+	<!-- GRID of favorites -->
+	<draggable
+		v-if="sortedStreamsLocal.length > 0"
+		v-model="sortedStreamsLocal"
+		item-key="id"
+		:disabled="!persistentData.adminMode"
+		class="row g-3"
+		@end="saveOrder"
+	>
+		<template #item="{ element: stream }">
+			<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div
+					class="card shadow-sm h-100"
+					:class="{ 'draggable-active': persistentData.adminMode }"
+				>
+					<div class="card-body d-flex justify-content-between">
+						<div>
+							<h4 class="card-title text-truncate mb-1">
+								{{ getFriendlyName(stream) }}
+							</h4>
+							<!-- <small class="text-muted d-block text-truncate">
+								{{ stream.origin.address }}
+							</small> -->
+							<!-- <small v-if="stream.isSupported" class="text-muted d-block">
+								{{ stream.codec }} / {{ stream.samplerate }}Hz /
+								{{ stream.channels }}
+							</small>
+							<small v-else class="text-danger">Unsupported</small> -->
+						</div>
 
-					<div class="mt-3 text-end">
-						<button
-							class="btn btn-sm"
-							:class="{
-								'btn-success': stream.id !== playing,
-								'btn-danger': stream.id === playing,
-							}"
-							@click="playStream(stream)"
-							v-if="stream.isSupported"
-							:disabled="
-								!getCurrentSupportedSampleRates().includes(stream.samplerate)
-							"
-						>
-							<i v-if="stream.id === playing" class="bi bi-stop-fill"></i>
-							<i v-else class="bi bi-play-fill"></i>
-						</button>
+						<div class="text-end">
+							<button
+								class="btn btn-sm"
+								:class="{
+									'btn-success': stream.id !== playing,
+									'btn-danger': stream.id === playing,
+								}"
+								@click="playStream(stream)"
+								v-if="stream.isSupported"
+								:disabled="
+									!getCurrentSupportedSampleRates().includes(stream.samplerate)
+								"
+							>
+								<i v-if="stream.id === playing" class="bi bi-stop-fill"></i>
+								<i v-else class="bi bi-play-fill"></i>
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-	</div>
+		</template>
+	</draggable>
 </template>
 
 <script>
+import draggable from "vuedraggable";
 import {
 	searchStreams,
 	streams,
@@ -69,87 +78,77 @@ import {
 	streamIndex,
 	getCurrentSupportedSampleRates,
 } from "../../app.js";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 
 export default {
 	name: "FavoritesPage",
+	components: { draggable },
 	setup() {
-		const sortKey = ref("name");
-		const sortOrder = ref(1);
-
-		// ✅ Load favorites from localStorage
+		// Load favorite IDs from localStorage
 		const favoriteIds = ref(
-			new Set(JSON.parse(localStorage.getItem("favorites") || "[]"))
+			JSON.parse(localStorage.getItem("favorites") || "[]")
 		);
 
-		function setSort(key) {
-			if (sortKey.value === key) {
-				sortOrder.value = -sortOrder.value;
-			} else {
-				sortKey.value = key;
-				sortOrder.value = 1;
-			}
-		}
+		// Filter all streams → only favorites
+		const favoriteStreams = computed(() =>
+			searchStreams().filter((s) => favoriteIds.value.includes(s.id))
+		);
 
-		// Load or assign friendly names from localStorage
-		function getFriendlyName(stream) {
-			const key = `friendly_name_${stream.id}`;
+		// Load saved drag order
+		const savedOrder = ref(
+			JSON.parse(localStorage.getItem("favoritesOrder") || "[]")
+		);
 
-			const stored = localStorage.getItem(key);
+		// Sort favorites according to saved order
+		const sortedStreamsLocal = ref([]);
 
-			if (stored) {
-				stream.friendly_name = stored;
-			} else if (!stream.friendly_name) {
-				stream.friendly_name = "";
-			}
-			return stream.friendly_name ? `${stream.friendly_name}` : stream.name;
-		}
-
-		function getSortValue(stream, key) {
-			switch (key) {
-				case "name":
-					return stream.name;
-				case "address":
-					return stream.origin.address;
-				case "format":
-					return stream.isSupported
-						? `${stream.codec} ${stream.samplerate}Hz ${stream.channels}`
-						: "";
-				default:
-					return stream[key];
-			}
-		}
-
-		// ✅ Filter to only favorite streams
-		const favoriteStreams = computed(() => {
-			return searchStreams().filter((s) => favoriteIds.value.has(s.id));
-		});
-
-		// ✅ Apply sorting to favorites
-		const sortedStreams = computed(() => {
-			return favoriteStreams.value.slice().sort((a, b) => {
-				let propA = getSortValue(a, sortKey.value);
-				let propB = getSortValue(b, sortKey.value);
-				if (typeof propA === "string") propA = propA.toLowerCase();
-				if (typeof propB === "string") propB = propB.toLowerCase();
-				if (propA < propB) return -1 * sortOrder.value;
-				if (propA > propB) return 1 * sortOrder.value;
-				return 0;
+		function sortStreamsBySavedOrder() {
+			const streams = [...favoriteStreams.value];
+			streams.sort((a, b) => {
+				const indexA = savedOrder.value.indexOf(a.id);
+				const indexB = savedOrder.value.indexOf(b.id);
+				// Streams not yet saved should go to the bottom
+				if (indexA === -1 && indexB === -1) return 0;
+				if (indexA === -1) return 1;
+				if (indexB === -1) return -1;
+				return indexA - indexB;
 			});
+			sortedStreamsLocal.value = streams;
+		}
+
+		// Initialize
+		sortStreamsBySavedOrder();
+
+		// React to favorites changing (e.g., added/removed)
+		watch(favoriteStreams, () => {
+			sortStreamsBySavedOrder();
 		});
+
+		// Save order when drag ends
+		function saveOrder() {
+			const order = sortedStreamsLocal.value.map((s) => s.id);
+			localStorage.setItem("favoritesOrder", JSON.stringify(order));
+			savedOrder.value = order;
+		}
+
+		function getFriendlyName(stream) {
+			const storedName = localStorage.getItem(`friendly_name_${stream.id}`);
+			if (storedName && storedName.trim().length > 0) {
+				return `${storedName}`;
+			}
+			return stream.name;
+		}
 
 		return {
-			sortedStreams,
 			favoriteStreams,
-			sortKey,
-			sortOrder,
-			setSort,
+			sortedStreamsLocal,
+			saveOrder,
+			getFriendlyName,
 			searchStreams,
 			streams,
 			streamCount,
 			playStream,
 			getChannelSelectValues,
-			getFriendlyName,
 			visibleStreams,
 			playing,
 			persistentData,
@@ -171,5 +170,13 @@ export default {
 }
 .card-title {
 	font-weight: 600;
+}
+.draggable-active {
+	cursor: grab;
+	border: 2px dashed #0d6efd;
+}
+.draggable-active:active {
+	background-color: rgb(240, 240, 240);
+	cursor: grabbing;
 }
 </style>

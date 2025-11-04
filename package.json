@@ -12,7 +12,7 @@
 	"main": "main.js",
 	"scripts": {
 		"serve": "vue-cli-service serve --port 8888",
-		"build": "vue-cli-service build && electron-builder",
+		"build": "vue-cli-service build && electron-builder --win portable",
 		"lint": "vue-cli-service lint",
 		"format": "prettier --write .",
 		"start": "electron ."
@@ -24,16 +24,17 @@
 		"core-js": "^3.8.3",
 		"electron-store": "^8.2.0",
 		"sdp-transform": "^2.15.0",
-		"vue": "^3.2.13"
+		"vue": "^3.2.13",
+		"vuedraggable": "^4.1.0"
 	},
 	"devDependencies": {
 		"@babel/core": "^7.12.16",
 		"@babel/eslint-parser": "^7.12.16",
 		"@vue/cli-plugin-babel": "~5.0.0",
 		"@vue/cli-plugin-eslint": "~5.0.0",
-		"electron-builder": "^25.1.8",
 		"@vue/cli-service": "~5.0.0",
 		"electron": "^34.2.0",
+		"electron-builder": "^25.1.8",
 		"eslint": "^7.32.0",
 		"eslint-plugin-vue": "^8.0.3"
 	},

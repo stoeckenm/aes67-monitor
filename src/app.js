@@ -16,6 +16,7 @@ export const selectedChannel = ref([]);
 export const streamIndex = ref([]);
 export const visibleStreams = ref(0);
 export const playing = ref("");
+export const currentStream = ref("");
 export const persistentData = ref({
 	settings: {
 		bufferSize: 16,
@@ -23,7 +24,9 @@ export const persistentData = ref({
 		hideUnsupported: true,
 		sdpDeleteTimeout: 300,
 		sidebarCollapsed: false,
+		followSystemAudio: true,
 	},
+	adminMode: JSON.parse(localStorage.getItem("adminMode") || "false"),
 });
 
 export const rawSDP = ref({
@@ -175,6 +178,12 @@ export const getAudioOutputDevices = () => {
 	});
 };
 
+export const getDefaultAudioOutputDevice = () => {
+	return audioInterfaces.value.find((device) => {
+		return device.isDefaultOutput;
+	});
+};
+
 export const getCurrentAudioOutput = () => {
 	return audioInterfaces.value.filter((device) => {
 		return device.outputChannels > 0 && device.isCurrent;
@@ -234,9 +243,11 @@ export const getChannelSelectValues = (stream) => {
 };
 
 export const playStream = (stream) => {
+	currentStream.value = stream;
 	getChannelSelectValues(stream);
 	if (playing.value == stream.id) {
 		playing.value = "";
+		currentStream.value = null;
 		sendMessage({ type: "stop" });
 	} else {
 		playing.value = stream.id;
@@ -281,7 +292,6 @@ export const playStream = (stream) => {
 				filterAddr: filterAddr,
 			};
 
-			console.log(data);
 			sendMessage({
 				type: "play",
 				data: data,
@@ -296,15 +306,24 @@ export const setCurrentAudioInterface = (device) => {
 	sendMessage({
 		type: "setAudioInterface",
 		data: {
-			inputChannels: device.inputChannels,
-			outputChannels: device.outputChannels,
-			name: device.name,
+			inputChannels: device ? device.inputChannels : null,
+			outputChannels: device ? device.outputChannels : null,
+			name: device ? device.name : null,
 		},
 	});
 
 	if (playing.value != "") {
 		console.log("Triggering restart");
 		sendMessage({ type: "restart" });
+	}
+};
+
+export const updateAudioInterface = () => {
+	playing.value = "";
+	sendMessage({ type: "stop" });
+	setCurrentAudioInterface();
+	if (currentStream.value) {
+		playStream(currentStream.value);
 	}
 };
 
@@ -354,6 +373,11 @@ if (window.electronAPI) {
 				break;
 			case "updatePersistentData":
 				persistentData.value = message.data;
+				break;
+			case "refreshAfterDeviceChange":
+				console.log("refresh after device change");
+				playing.value = "";
+				playStream(currentStream.value);
 				break;
 			default:
 				console.log(message.type, message.data);

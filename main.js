@@ -20,12 +20,16 @@ let persistentData = store.get("persistentData", {
 		hideUnsupported: true,
 		sdpDeleteTimeout: 300,
 		sidebarCollapsed: false,
+		followSystemAudio: true,
 	},
+	adminMode: false,
 });
 let currentAudioDevice = null;
 let audioAPI = RtAudioApi.UNSPECIFIED;
 let isSDPInitialized = false;
 let streamsHash;
+let currentPlayArgs = null;
+let previousAudioDevice = null;
 
 // Set audio API based on the operating system
 switch (process.platform) {
@@ -54,6 +58,7 @@ function createMainWindow() {
 	mainWindow = new BrowserWindow({
 		width: 1920,
 		height: 1080,
+		autoHideMenuBar: true, // false for devtools and menubar
 		webPreferences: {
 			preload: path.join(__dirname, "preload.js"),
 			/* devTools: !app.isPackaged, */
@@ -108,13 +113,13 @@ function handleIpcMessage(message) {
 			break;
 		case "play":
 			refreshCurrentAudioInterface();
-			var playArgs = {
+			currentPlayArgs = {
 				...message.data,
 				audioAPI: audioAPI,
 				networkInterface: currentNetworkInterface.address,
 				selected: currentAudioDevice,
 			};
-			audioProcess.send({ type: "start", data: playArgs });
+			audioProcess.send({ type: "start", data: currentPlayArgs });
 			break;
 		case "stop":
 			audioProcess.send({ type: "stop" });
@@ -261,15 +266,17 @@ function setAudioInterface(device) {
 
 	// Find a matching device or use the default output device
 	for (const dev of devices) {
-		if (
-			device &&
-			dev.name === device.name &&
-			dev.inputChannels === device.inputChannels &&
-			dev.outputChannels === device.outputChannels
-		) {
-			currentAudioDevice = dev;
-			found = true;
-			break;
+		if (!persistentData.settings.followSystemAudio) {
+			if (
+				device &&
+				dev.name === device.name &&
+				dev.inputChannels === device.inputChannels &&
+				dev.outputChannels === device.outputChannels
+			) {
+				currentAudioDevice = dev;
+				found = true;
+				break;
+			}
 		}
 		if (dev.isDefaultOutput) {
 			defaultOutputDevice = dev;
@@ -281,8 +288,27 @@ function setAudioInterface(device) {
 		currentAudioDevice = defaultOutputDevice;
 	}
 
+	if (previousAudioDevice) {
+		const changed =
+			currentAudioDevice.name !== previousAudioDevice.name ||
+			currentAudioDevice.id !== previousAudioDevice.id;
+		if (changed) {
+			console.log("Audio interface changed - restarting stream...");
+			previousAudioDevice = currentAudioDevice;
+			restartStream();
+		}
+	}
+
+	previousAudioDevice = currentAudioDevice;
 	store.set("audioInterface", currentAudioDevice);
 	updateAudioInterfaces();
+}
+/**
+ * Restarts the stream when system audio is changed. Only active if followSystemAudio is true
+ */
+function restartStream() {
+	handleIpcMessage({ type: "stop" });
+	sendMessage("refreshAfterDeviceChange");
 }
 
 /**

@@ -11,6 +11,10 @@ AES67 Stream Monitor is a cross-platform Audio-over-IP monitoring application de
 - **Stream Filtering and Sorting:** Easily filter and sort streams to quickly locate the channels you need.
 - **Selective Channel Listening:** Choose specific channels to listen to, with support for both stereo pairs and individual mono channels.
 - **Customizable Settings:** Configure network interfaces, audio devices, RTP buffering, and other parameters.
+- **Follow System Audio:** Possibility to setup a specific audio output or follow system audio.
+- **Admin Mode:** Hide all settings if admin is not logged in.
+- **Favorites Page:** Page where you can add favorites with a friendly name.
+- **Friendly Names for Streams**: In StreamPage it is possible to add a friendly name.
 
 Below are some screenshots showcasing the application's interface:
 ![Screenshot](.doc/streams.png "Screenshot of streams overview page")
@@ -121,6 +125,6 @@ Partners receive higher priority for bug reports & feature requests, are provide
 
 ### Current Project Partners
 
-| Partner                                                                                     | Type of Partnership | Description                                                                                                                                                                                                                                |
-| ------------------------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Partner                                                                                                                                                                                                                                                                                                                       | Type of Partnership | Description                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | <a href="https://hochschulradio-aachen.de"><picture><source media="(prefers-color-scheme: dark)" srcset=".doc/logo-hochschulradio-light.png"><source media="(prefers-color-scheme: light)" srcset=".doc/logo-hochschulradio-dark.png"><img alt="Hochschulradio Aachen" src=".doc/logo-hochschulradio-dark.png"></picture></a> | Testing & Feedback  | RWTH Aachen University's campus radio station is a founding partner and has played a key role since the beginning of the project. Every new release is tested on their hybrid Dante / AES67 network in a real-world broadcast environment. |

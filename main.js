@@ -1,19 +1,30 @@
 const { app, BrowserWindow, ipcMain } = require("electron/main");
 const path = require("node:path");
+const fs = require("node:fs");
 const crypto = require("crypto");
 const os = require("os");
 const { RtAudio, RtAudioApi } = require("audify");
-const Store = require("electron-store");
 const { fork } = require("child_process");
+const { log } = require("node:console");
 
-// Initialize persistent storage
-const store = new Store();
+// ---------------------------
+// Paths and config
+// ---------------------------
+const configDir =
+	process.platform === "win32"
+		? path.join(process.env.ProgramData, "StreamMonitor")
+		: path.join(app.getPath("userData"), "StreamMonitor");
 
-// Global variables
-let mainWindow; // Main application window
-let networkInterfaces = []; // List of available network interfaces
-let currentNetworkInterface = store.get("interface");
-let persistentData = store.get("persistentData", {
+fs.mkdirSync(configDir, { recursive: true });
+const configPath = path.join(configDir, "config.json");
+
+// Store user_data separately for cache etc.
+app.setPath("userData", path.join(__dirname, "user_data"));
+
+// ---------------------------
+// Default persistentData
+// ---------------------------
+let persistentData = {
 	settings: {
 		bufferSize: 16,
 		bufferEnabled: true,
@@ -21,17 +32,71 @@ let persistentData = store.get("persistentData", {
 		sdpDeleteTimeout: 300,
 		sidebarCollapsed: false,
 		followSystemAudio: true,
+		audioInterface: null, // <-- saved audio device
 	},
-	adminMode: false,
+	network: {
+		interfaces: [],
+		currentInterface: "",
+	},
+	favorites: [],
+	devices: [],
+};
+
+// At the top, after imports and persistentData is initialized
+ipcMain.handle("get-shared-config", async () => {
+	// Always return the latest persistentData
+	return persistentData;
 });
+
+// ---------------------------
+// Load config from disk
+// ---------------------------
+try {
+	if (fs.existsSync(configPath)) {
+		const data = fs.readFileSync(configPath, "utf-8");
+		const parsed = JSON.parse(data);
+
+		// Merge loaded config with defaults to ensure all keys exist
+		persistentData = {
+			settings: { ...persistentData.settings, ...(parsed.settings || {}) },
+			network: { ...persistentData.network, ...(parsed.network || {}) },
+			favorites: parsed.favorites || persistentData.favorites,
+			devices: parsed.devices || persistentData.devices,
+		};
+	} else {
+		fs.writeFileSync(configPath, JSON.stringify(persistentData, null, 2));
+	}
+} catch (err) {
+	console.error("Error loading config:", err);
+}
+
+// ---------------------------
+// Save helper
+// ---------------------------
+function saveConfig() {
+	try {
+		fs.writeFileSync(configPath, JSON.stringify(persistentData, null, 2));
+	} catch (err) {
+		console.error("Error saving config:", err);
+	}
+}
+
+// ---------------------------
+// Global variables
+// ---------------------------
+let mainWindow;
+let networkInterfaces = [];
+let currentNetworkInterface = null;
 let currentAudioDevice = null;
 let audioAPI = RtAudioApi.UNSPECIFIED;
 let isSDPInitialized = false;
-let streamsHash;
+let streamsHash = null;
 let currentPlayArgs = null;
 let previousAudioDevice = null;
 
-// Set audio API based on the operating system
+// ---------------------------
+// Set audio API based on OS
+// ---------------------------
 switch (process.platform) {
 	case "darwin":
 		audioAPI = RtAudioApi.MACOSX_CORE;
@@ -44,31 +109,31 @@ switch (process.platform) {
 		break;
 }
 
-// Initialize RtAudio with the chosen API
 const rtAudio = new RtAudio(audioAPI);
 
-// Spawn child processes for SDP and Audio functionalities
+// ---------------------------
+// Spawn child processes
+// ---------------------------
 const sdpProcess = fork(path.join(__dirname, "./src/lib/sdp.js"));
 const audioProcess = fork(path.join(__dirname, "./src/lib/audio.js"));
 
-/**
- * Creates and configures the main application window.
- */
+// ---------------------------
+// Main window
+// ---------------------------
 function createMainWindow() {
 	mainWindow = new BrowserWindow({
 		width: 1920,
 		height: 1080,
-		autoHideMenuBar: true, // false for devtools and menubar
+		autoHideMenuBar: false,
 		webPreferences: {
 			preload: path.join(__dirname, "preload.js"),
-			/* devTools: !app.isPackaged, */
+			contextIsolation: true,
+			nodeIntegration: false,
 		},
 	});
 
-	// Load file or URL depending on whether the app is packaged
 	if (app.isPackaged) {
 		mainWindow.loadFile("./dist/index.html");
-		// Disable refresh shortcuts in packaged mode
 		mainWindow.webContents.on("before-input-event", (event, input) => {
 			if (
 				(input.key.toLowerCase() === "r" && (input.control || input.meta)) ||
@@ -81,16 +146,12 @@ function createMainWindow() {
 		mainWindow.loadURL("http://localhost:8888");
 	}
 
-	// Handle IPC messages from the renderer process
-	ipcMain.on("recv-message", (event, message) => {
-		handleIpcMessage(message);
-	});
+	ipcMain.on("recv-message", (event, message) => handleIpcMessage(message));
 }
 
-/**
- * Handles incoming IPC messages from the renderer.
- * @param {Object} message - The message object from the renderer.
- */
+// ---------------------------
+// IPC message handling
+// ---------------------------
 function handleIpcMessage(message) {
 	switch (message.type) {
 		case "update":
@@ -98,173 +159,165 @@ function handleIpcMessage(message) {
 			updateSystem();
 			sdpProcess.send({ type: "update" });
 			break;
+
 		case "setAudioInterface":
 			setAudioInterface(message.data);
 			break;
+
 		case "restart":
 			refreshCurrentAudioInterface();
 			audioProcess.send({
 				type: "restart",
 				data: {
-					networkInterface: currentNetworkInterface.address,
+					networkInterface: currentNetworkInterface?.address || "",
 					selected: currentAudioDevice,
 				},
 			});
 			break;
+
 		case "play":
 			refreshCurrentAudioInterface();
 			currentPlayArgs = {
 				...message.data,
 				audioAPI: audioAPI,
-				networkInterface: currentNetworkInterface.address,
+				networkInterface: currentNetworkInterface?.address || "",
 				selected: currentAudioDevice,
 			};
 			audioProcess.send({ type: "start", data: currentPlayArgs });
 			break;
+
 		case "stop":
 			audioProcess.send({ type: "stop" });
 			break;
+
 		case "addStream":
 			sdpProcess.send({ type: "add", data: message.data });
 			break;
+
 		case "delete":
 			sdpProcess.send({ type: "delete", data: message.data });
 			break;
+
 		case "setNetwork":
-			if (currentNetworkInterface.address != message.data) {
+			if (currentNetworkInterface?.address !== message.data) {
 				console.log("Got new network interface", message.data);
-				currentNetworkInterface.address = message.data;
+				persistentData.network.currentInterface = message.data;
 				updateNetworkInterfaces();
-				store.set("interface", currentNetworkInterface);
 				audioProcess.send({ type: "stop" });
-				sdpProcess.send({
-					type: "interface",
-					data: currentNetworkInterface.address,
-				});
+				sdpProcess.send({ type: "interface", data: message.data });
+				saveConfig();
 			}
 			break;
+
 		case "save":
-			persistentData[message.key] = JSON.parse(message.data);
-			store.set("persistentData", persistentData);
+			if (message.key && persistentData.hasOwnProperty(message.key)) {
+				persistentData[message.key] = JSON.parse(message.data);
 
-			if (message.key == "settings") {
-				sdpProcess.send({
-					type: "deleteTimeout",
-					data: persistentData.settings.sdpDeleteTimeout,
-				});
+				if (
+					message.key === "network" &&
+					persistentData.network.currentInterface
+				) {
+					currentNetworkInterface =
+						persistentData.network.interfaces.find(
+							(i) => i.address === persistentData.network.currentInterface
+						) || persistentData.network.interfaces[0];
+				}
+
+				if (message.key === "settings") {
+					sdpProcess.send({
+						type: "deleteTimeout",
+						data: persistentData.settings.sdpDeleteTimeout,
+					});
+				}
+
+				saveConfig();
+			} else {
+				console.warn("Unknown key for save:", message.key);
 			}
-
 			break;
+
 		default:
 			console.log("Unknown IPC message type:", message.type, message.data);
 	}
 }
 
-/**
- * Sends a message to the renderer process.
- * @param {string} type - The message type.
- * @param {*} data - The message payload.
- */
+// ---------------------------
+// Send messages to renderer
+// ---------------------------
 function sendMessage(type, data) {
 	if (mainWindow) {
 		try {
 			mainWindow.webContents.send("send-message", { type, data });
-		} catch (error) {
-			console.error("Error sending message:", error);
+		} catch (err) {
+			console.error("Error sending message:", err);
 		}
 	}
 }
 
-/**
- * Sends a log message to the renderer process.
- * @param {string} logMessage - The log message.
- */
-function sendLog(logMessage) {
-	sendMessage("log", logMessage);
-}
-
-/**
- * Scans and updates the available network interfaces.
- */
+// ---------------------------
+// Network interface management
+// ---------------------------
 function updateNetworkInterfaces() {
 	const interfaces = os.networkInterfaces();
 	const addresses = [];
 
-	// Iterate over each interface and collect valid IPv4 addresses (exclude localhost)
-	for (const interfaceName of Object.keys(interfaces)) {
-		const iface = interfaces[interfaceName];
-		for (const addr of iface) {
+	for (const name of Object.keys(interfaces)) {
+		for (const addr of interfaces[name]) {
 			if (addr.family === "IPv4" && addr.address !== "127.0.0.1") {
-				addr.name = interfaceName;
+				addr.name = name;
 				addresses.push(addr);
 			}
 		}
 	}
 
-	// Check if the stored network interface is still available
-	if (currentNetworkInterface) {
-		let found = false;
-		for (const addr of addresses) {
-			if (addr.address === currentNetworkInterface.address) {
-				found = true;
-				addr.isCurrent = true;
-			} else {
-				addr.isCurrent = false;
-			}
-		}
-		if (!found && addresses.length > 0) {
-			console.log("Network interface changed");
-			currentNetworkInterface = addresses[0];
-			addresses[0].isCurrent = true;
-			store.set("interface", currentNetworkInterface);
-			audioProcess.send({ type: "stop" });
+	// Ensure network object exists
+	persistentData.network = persistentData.network || {
+		interfaces: [],
+		currentInterface: "",
+	};
 
-			if (isSDPInitialized) {
-				sdpProcess.send({
-					type: "interface",
-					data: currentNetworkInterface.address,
-				});
-			}
-		} else if (!found) {
-			console.error("No Network interfaces found");
-		}
-	} else if (addresses.length > 0) {
-		currentNetworkInterface = addresses[0];
-	} else {
-		console.error("No Network interfaces found");
+	persistentData.network.interfaces = addresses.map((a) => ({
+		name: a.name,
+		address: a.address,
+	}));
+
+	// Determine current interface
+	let currentAddr = persistentData.network.currentInterface
+		? addresses.find(
+				(a) => a.address === persistentData.network.currentInterface
+		  )
+		: null;
+
+	if (!currentAddr && addresses.length > 0) {
+		currentAddr = addresses[0];
+		persistentData.network.currentInterface = currentAddr.address;
+	}
+
+	if (currentAddr) {
+		currentAddr.isCurrent = true;
+		currentNetworkInterface = currentAddr;
 	}
 
 	networkInterfaces = addresses;
+	saveConfig();
 }
 
-/**
- * Updates the list of audio devices and sends it to the renderer.
- */
+// ---------------------------
+// Audio interface management
+// ---------------------------
 function updateAudioInterfaces() {
 	let devices = rtAudio.getDevices();
+	devices = devices.filter((d) => d.inputChannels > 0 || d.outputChannels > 0);
 
-	// Mark the current audio device and filter out devices without channels
-	for (let i = 0; i < devices.length; i++) {
-		devices[i].isCurrent =
-			currentAudioDevice && devices[i].id === currentAudioDevice.id;
-		if (devices[i].inputChannels === 0 && devices[i].outputChannels === 0) {
-			devices.splice(i, 1);
-			i--;
-		}
-	}
+	devices.forEach((d) => (d.isCurrent = currentAudioDevice?.id === d.id));
 	sendMessage("audioDevices", devices);
 }
 
-/**
- * Sets the current audio interface based on the provided device.
- * @param {Object} device - The audio device to set as current.
- */
 function setAudioInterface(device) {
 	const devices = rtAudio.getDevices();
-	let defaultOutputDevice = null;
+	let defaultDevice = devices.find((d) => d.isDefaultOutput);
 	let found = false;
 
-	// Find a matching device or use the default output device
 	for (const dev of devices) {
 		if (!persistentData.settings.followSystemAudio) {
 			if (
@@ -278,128 +331,119 @@ function setAudioInterface(device) {
 				break;
 			}
 		}
-		if (dev.isDefaultOutput) {
-			defaultOutputDevice = dev;
-		}
 	}
 
-	if (!found) {
-		console.log("Setting current device to default device");
-		currentAudioDevice = defaultOutputDevice;
-	}
+	if (!found) currentAudioDevice = defaultDevice;
 
 	if (previousAudioDevice) {
 		const changed =
 			currentAudioDevice.name !== previousAudioDevice.name ||
 			currentAudioDevice.id !== previousAudioDevice.id;
-		if (changed) {
-			console.log("Audio interface changed - restarting stream...");
-			previousAudioDevice = currentAudioDevice;
-			restartStream();
-		}
+		if (changed) restartStream();
 	}
 
 	previousAudioDevice = currentAudioDevice;
-	store.set("audioInterface", currentAudioDevice);
+
+	// Save to persistentData
+	persistentData.settings.audioInterface = currentAudioDevice
+		? {
+				name: currentAudioDevice.name,
+				inputChannels: currentAudioDevice.inputChannels,
+				outputChannels: currentAudioDevice.outputChannels,
+				id: currentAudioDevice.id,
+		  }
+		: null;
+
+	saveConfig();
 	updateAudioInterfaces();
 }
-/**
- * Restarts the stream when system audio is changed. Only active if followSystemAudio is true
- */
+
 function restartStream() {
 	handleIpcMessage({ type: "stop" });
 	sendMessage("refreshAfterDeviceChange");
 }
 
-/**
- * Refreshes the current audio interface.
- */
 function refreshCurrentAudioInterface() {
 	setAudioInterface(currentAudioDevice);
 }
 
-/**
- * Updates the system settings, network interfaces, and initializes SDP if necessary.
- */
+// ---------------------------
+// System update loop
+// ---------------------------
 function updateSystem() {
 	updateNetworkInterfaces();
 	refreshCurrentAudioInterface();
 
-	if (!isSDPInitialized) {
-		console.log("SDP is not yet initialized");
-		sendLog("SDP is not yet initialized");
-
+	if (!isSDPInitialized && currentNetworkInterface) {
+		console.log("Initializing SDP...");
 		isSDPInitialized = true;
-		sdpProcess.send({
-			type: "init",
-			data: currentNetworkInterface.address,
-		});
+		sdpProcess.send({ type: "init", data: currentNetworkInterface.address });
 		sdpProcess.send({
 			type: "deleteTimeout",
 			data: persistentData.settings.sdpDeleteTimeout,
 		});
-		store.set("interface", currentNetworkInterface);
-		console.log(
-			"Init SDP",
-			currentNetworkInterface.name,
-			currentNetworkInterface.address
-		);
-
-		const storedStreams = store.get("streams");
-		if (storedStreams) {
-			for (const stream of storedStreams) {
-				if (stream.manual) {
-					console.log("Loading stream", stream.name);
-					sdpProcess.send({
-						type: "add",
-						data: {
-							sdp: stream.raw,
-							announce: stream.announce,
-						},
-					});
-				}
-			}
-		}
 	}
 
 	sendMessage("interfaces", networkInterfaces);
 }
 
-// Handle messages from the SDP child process
+// ---------------------------
+// SDP child process
+// ---------------------------
 sdpProcess.on("message", (data) => {
 	sendMessage("streams", data);
 
-	// Combine raw stream data for hashing
-	const combinedRaw = data
-		.map((stream) => (stream.manual ? stream.raw : ""))
-		.join("");
+	const combinedRaw = data.map((s) => (s.manual ? s.raw : "")).join("");
 	const newHash = crypto.createHash("sha256").update(combinedRaw).digest("hex");
 
 	if (newHash !== streamsHash) {
-		console.log("Saving streams");
 		streamsHash = newHash;
-		store.set("streams", data);
+		saveConfig();
 	}
 });
 
-// Initialize the application when ready
+// ---------------------------
+// App ready
+// ---------------------------
 app.whenReady().then(() => {
 	createMainWindow();
 
 	app.on("activate", () => {
-		if (BrowserWindow.getAllWindows().length === 0) {
-			createMainWindow();
-		}
+		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});
 });
 
-// Handle application shutdown: kill child processes and quit app
+// ---------------------------
+// App close
+// ---------------------------
 app.on("window-all-closed", () => {
 	sdpProcess.kill();
 	audioProcess.kill();
 	app.quit();
 });
 
-// Initialize audio interface from stored configuration and start periodic updates
-setAudioInterface(store.get("audioInterface"));
+// ---------------------------
+// Restore audio interface from persistentData
+// ---------------------------
+(function restoreAudioInterface() {
+	const devices = rtAudio.getDevices();
+	let savedDevice = persistentData.settings.audioInterface
+		? devices.find(
+				(d) =>
+					d.name === persistentData.settings.audioInterface.name &&
+					d.inputChannels ===
+						persistentData.settings.audioInterface.inputChannels &&
+					d.outputChannels ===
+						persistentData.settings.audioInterface.outputChannels
+		  )
+		: devices.find((d) => d.isDefaultOutput);
+
+	if (!savedDevice) savedDevice = devices.find((d) => d.isDefaultOutput);
+
+	if (savedDevice) setAudioInterface(savedDevice);
+})();
+
+// ---------------------------
+// Start periodic updates
+// ---------------------------
 setInterval(updateSystem, 500);

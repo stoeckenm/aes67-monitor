@@ -171,25 +171,36 @@
 </template>
 
 <script>
-import { selectedStream, getTextareaRowNumber } from "../../app.js";
+import {
+	selectedStream,
+	persistentData,
+	getTextareaRowNumber,
+	updatePersistentData,
+} from "../../app.js";
 import { ref, watch } from "vue";
 
 export default {
 	name: "StreamPage",
 	setup() {
-		const friendlyNameKey = `friendly_name_${selectedStream.value.id}`;
+		// Ensure persistent storage for friendly names exists
+		if (!persistentData.value.settings.friendlyNames) {
+			persistentData.value.settings.friendlyNames = {};
+		}
 
-		const storedName = localStorage.getItem(friendlyNameKey) || "";
-
+		// Get the current friendly name for this stream, fallback to empty
+		const streamId = selectedStream.value.id;
+		const storedName =
+			persistentData.value.settings.friendlyNames[streamId] || "";
 		const friendlyName = ref(storedName);
 
 		// Sync reactive value to selectedStream for display
 		selectedStream.value.friendly_name = friendlyName.value;
 
-		// Watch for changes and persist immediately
+		// Watch for changes and persist to persistentData
 		watch(friendlyName, (newVal) => {
 			selectedStream.value.friendly_name = newVal;
-			localStorage.setItem(friendlyNameKey, newVal);
+			persistentData.value.settings.friendlyNames[streamId] = newVal;
+			updatePersistentData("settings");
 		});
 
 		return {
@@ -206,3 +217,7 @@ li > span {
 	word-wrap: break-word;
 }
 </style>
+
+// ADD FRIENDLY NAMES TO EVERYTHING // ADD FRIENDLY NAMES TO EVERYTHING // ADD
+FRIENDLY NAMES TO EVERYTHING // ADD FRIENDLY NAMES TO EVERYTHING // ADD FRIENDLY
+NAMES TO EVERYTHING //uodate streams list, and favorites list

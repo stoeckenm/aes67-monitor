@@ -25,24 +25,19 @@
 					class="card shadow-sm h-100"
 					:class="{ 'draggable-active': persistentData.adminMode }"
 				>
-					<div class="card-body d-flex justify-content-between">
+					<div
+						class="card-body d-flex justify-content-between align-items-start"
+					>
 						<div>
 							<h4 class="card-title text-truncate mb-1">
 								{{ getFriendlyName(stream) }}
 							</h4>
-							<!-- <small class="text-muted d-block text-truncate">
-								{{ stream.origin.address }}
-							</small> -->
-							<!-- <small v-if="stream.isSupported" class="text-muted d-block">
-								{{ stream.codec }} / {{ stream.samplerate }}Hz /
-								{{ stream.channels }}
-							</small>
-							<small v-else class="text-danger">Unsupported</small> -->
 						</div>
 
 						<div class="text-end">
+							<!-- Play / Stop Button -->
 							<button
-								class="btn btn-sm"
+								class="btn btn-sm me-1"
 								:class="{
 									'btn-success': stream.id !== playing,
 									'btn-danger': stream.id === playing,
@@ -56,6 +51,15 @@
 								<i v-if="stream.id === playing" class="bi bi-stop-fill"></i>
 								<i v-else class="bi bi-play-fill"></i>
 							</button>
+
+							<!-- Remove Button (Admin only) -->
+							<button
+								v-if="persistentData.adminMode"
+								class="btn btn-sm btn-outline-danger"
+								@click="removeFavorite(stream)"
+							>
+								<i class="bi bi-trash"></i>
+							</button>
 						</div>
 					</div>
 				</div>
@@ -67,76 +71,103 @@
 <script>
 import draggable from "vuedraggable";
 import {
-	searchStreams,
-	streams,
 	streamCount,
+	playing,
 	playStream,
 	visibleStreams,
-	getChannelSelectValues,
-	playing,
 	persistentData,
-	streamIndex,
 	getCurrentSupportedSampleRates,
+	updatePersistentData,
+	stopStream,
 } from "../../app.js";
-import { ref, computed, watch } from "vue";
+import { ref, watch } from "vue";
 
 export default {
 	name: "FavoritesPage",
 	components: { draggable },
 	setup() {
-		// Load favorite IDs from localStorage
-		const favoriteIds = ref(
-			JSON.parse(localStorage.getItem("favorites") || "[]")
-		);
+		/* ---------- FAVORITES ---------- */
+		if (!persistentData.value.favorites) persistentData.value.favorites = [];
 
-		// Filter all streams → only favorites
-		const favoriteStreams = computed(() =>
-			searchStreams().filter((s) => favoriteIds.value.includes(s.id))
-		);
+		// Use full stream objects
+		const favoriteStreams = ref([...persistentData.value.favorites]);
 
-		// Load saved drag order
-		const savedOrder = ref(
-			JSON.parse(localStorage.getItem("favoritesOrder") || "[]")
-		);
+		// Initialize saved order
+		if (!persistentData.value.settings.favoritesOrder)
+			persistentData.value.settings.favoritesOrder = [];
+		const savedOrder = ref([...persistentData.value.settings.favoritesOrder]);
 
-		// Sort favorites according to saved order
+		// Sorted streams for grid
 		const sortedStreamsLocal = ref([]);
 
 		function sortStreamsBySavedOrder() {
-			const streams = [...favoriteStreams.value];
-			streams.sort((a, b) => {
-				const indexA = savedOrder.value.indexOf(a.id);
-				const indexB = savedOrder.value.indexOf(b.id);
-				// Streams not yet saved should go to the bottom
+			const streamsCopy = [...favoriteStreams.value];
+			streamsCopy.sort((a, b) => {
+				const indexA = savedOrder.value.findIndex((id) => id === a.id);
+				const indexB = savedOrder.value.findIndex((id) => id === b.id);
 				if (indexA === -1 && indexB === -1) return 0;
 				if (indexA === -1) return 1;
 				if (indexB === -1) return -1;
 				return indexA - indexB;
 			});
-			sortedStreamsLocal.value = streams;
+			sortedStreamsLocal.value = streamsCopy;
 		}
 
-		// Initialize
 		sortStreamsBySavedOrder();
 
-		// React to favorites changing (e.g., added/removed)
-		watch(favoriteStreams, () => {
+		/* ---------- FAVORITE MANAGEMENT ---------- */
+		function toggleFavorite(stream) {
+			const index = favoriteStreams.value.findIndex((s) => s.id === stream.id);
+			if (index === -1) {
+				favoriteStreams.value.push(stream);
+			} else {
+				favoriteStreams.value.splice(index, 1);
+			}
+			persistentData.value.favorites = [...favoriteStreams.value];
+			updatePersistentData("favorites");
 			sortStreamsBySavedOrder();
-		});
-
-		// Save order when drag ends
-		function saveOrder() {
-			const order = sortedStreamsLocal.value.map((s) => s.id);
-			localStorage.setItem("favoritesOrder", JSON.stringify(order));
-			savedOrder.value = order;
 		}
 
+		function isFavorite(stream) {
+			return favoriteStreams.value.some((s) => s.id === stream.id);
+		}
+
+		/* ---------- SORT ORDER MANAGEMENT ---------- */
+		function saveOrder() {
+			const order = sortedStreamsLocal.value.map((s) => s.id);
+			savedOrder.value = order;
+			persistentData.value.settings.favoritesOrder = order;
+			updatePersistentData("settings");
+		}
+
+		/* ---------- FRIENDLY NAMES ---------- */
 		function getFriendlyName(stream) {
-			const storedName = localStorage.getItem(`friendly_name_${stream.id}`);
-			if (storedName && storedName.trim().length > 0) {
-				return `${storedName}`;
+			const names = persistentData.value.settings.friendlyNames || {};
+			return names[stream.id]?.trim() || stream.name;
+		}
+
+		// Watch for external changes to favorites
+		watch(
+			() => persistentData.value.favorites,
+			(newFavs) => {
+				favoriteStreams.value = [...newFavs];
+				sortStreamsBySavedOrder();
+			},
+			{ deep: true }
+		);
+
+		function removeFavorite(stream) {
+			if (stream.id === playing.value) {
+				stopStream();
 			}
-			return stream.name;
+
+			const index = favoriteStreams.value.findIndex((s) => s.id === stream.id);
+			if (index !== -1) {
+				favoriteStreams.value.splice(index, 1);
+				persistentData.value.favorites = [...favoriteStreams.value];
+				updatePersistentData("favorites");
+				sortStreamsBySavedOrder();
+			}
 		}
 
 		return {
@@ -144,16 +175,15 @@ export default {
 			sortedStreamsLocal,
 			saveOrder,
 			getFriendlyName,
-			searchStreams,
-			streams,
 			streamCount,
-			playStream,
-			getChannelSelectValues,
-			visibleStreams,
 			playing,
+			playStream,
+			visibleStreams,
 			persistentData,
-			streamIndex,
 			getCurrentSupportedSampleRates,
+			toggleFavorite,
+			isFavorite,
+			removeFavorite,
 		};
 	},
 };

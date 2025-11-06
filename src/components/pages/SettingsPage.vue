@@ -6,6 +6,7 @@
 				class="form-select"
 				aria-label="Default select example"
 				id="networkSelect"
+				@change="updatePersistentData('settings')"
 			>
 				<option
 					v-for="networkInterface in networkInterfaces"
@@ -25,7 +26,10 @@
 					class="form-check-input"
 					type="checkbox"
 					id="check-buffering"
-					@change="updateAudioInterface()"
+					@change="
+						updateAudioInterface();
+						updatePersistentData('settings');
+					"
 					v-model="persistentData.settings.bufferEnabled"
 				/>
 				<label class="form-check-label" for="check-buffering">
@@ -36,6 +40,7 @@
 				<input
 					type="number"
 					v-model="persistentData.settings.bufferSize"
+					@change="updatePersistentData('settings')"
 					class="form-control"
 				/>
 				<span class="input-group-text">packets</span>
@@ -47,7 +52,10 @@
 					type="checkbox"
 					id="check-follow-system-audio"
 					v-model="persistentData.settings.followSystemAudio"
-					@change="updateAudioInterface()"
+					@change="
+						updateAudioInterface();
+						updatePersistentData('settings');
+					"
 				/>
 				<label class="form-check-label" for="check-follow-system-audio">
 					Always use default audio
@@ -63,6 +71,7 @@
 					type="checkbox"
 					id="check-unsupported"
 					v-model="persistentData.settings.hideUnsupported"
+					@change="updatePersistentData('settings')"
 				/>
 				<label class="form-check-label" for="check-unsupported">
 					Hide unsupported Streams
@@ -76,6 +85,7 @@
 					type="number"
 					id="sdp-delete-timeout-input"
 					v-model="persistentData.settings.sdpDeleteTimeout"
+					@change="updatePersistentData('settings')"
 					class="form-control"
 				/>
 				<span class="input-group-text">seconds</span>
@@ -90,6 +100,7 @@
 					type="checkbox"
 					id="check-sidebar-collapsed"
 					v-model="persistentData.settings.sidebarCollapsed"
+					@change="updatePersistentData('settings')"
 				/>
 				<label class="form-check-label" for="check-sidebar-collapsed">
 					Collapse Sidebar
@@ -104,6 +115,7 @@ import {
 	persistentData,
 	networkInterfaces,
 	updateAudioInterface,
+	updatePersistentData,
 } from "../../app.js";
 
 export default {
@@ -113,6 +125,7 @@ export default {
 			persistentData,
 			networkInterfaces,
 			updateAudioInterface,
+			updatePersistentData,
 		};
 	},
 };

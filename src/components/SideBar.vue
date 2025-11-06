@@ -16,9 +16,7 @@
 			<li id="favorites-li" :class="{ active: page === 'favorites' }">
 				<a @click="viewPage('favorites')">
 					<i class="bi bi-star-fill"></i><span>Favorites</span>
-					<span class="badge bg-primary">
-						{{ favoriteCount }}
-					</span>
+					<span class="badge bg-primary">{{ favoriteCount }}</span>
 				</a>
 			</li>
 
@@ -34,7 +32,7 @@
 							<template v-if="streamCountDisplay">{{
 								visibleStreams
 							}}</template>
-							<template v-else>{{ channelCount }}</template>
+							<template v-else>{{ streamCount }}</template>
 						</span>
 					</a>
 				</li>
@@ -42,9 +40,9 @@
 				<li id="devices-li" :class="{ active: page === 'devices' }">
 					<a @click="viewPage('devices')">
 						<i class="bi bi-hdd-network"></i><span>Devices</span>
-						<span class="badge bg-primary" id="device-count">{{
-							searchDevices.length
-						}}</span>
+						<span class="badge bg-primary" id="device-count">
+							{{ searchDevices.length }}
+						</span>
 					</a>
 				</li>
 
@@ -97,50 +95,34 @@
 		</div>
 	</div>
 </template>
-
 <script>
 import {
 	viewPage,
 	persistentData,
 	page,
 	streamCountDisplay,
-	channelCount,
 	setSidebarStatus,
-	searchStreams,
 	searchDevices,
 	visibleStreams,
+	streamCount,
 } from "../app.js";
 import { ref, computed } from "vue";
 
 export default {
 	name: "SideBar",
 	setup() {
-		// Initialize adminMode from localStorage once if undefined
-		if (persistentData.value.adminMode === undefined) {
-			persistentData.value.adminMode = JSON.parse(
-				localStorage.getItem("adminMode") || "false"
-			);
-		}
-
+		// ---------- ADMIN MODE ----------
 		const showPasswordInput = ref(false);
 		const password = ref("");
 		const passwordError = ref(false);
 
-		const favoriteIds = ref(
-			new Set(JSON.parse(localStorage.getItem("favorites") || "[]"))
-		);
+		if (persistentData.value.adminMode === undefined) {
+			persistentData.value.adminMode = false;
+		}
 
-		const favoriteCount = computed(() => {
-			// Count only streams that exist in current searchStreams
-			return searchStreams().filter((s) => favoriteIds.value.has(s.id)).length;
-		});
-
-		// Check password and enable admin mode
 		function checkPassword() {
 			if (password.value === "tomtom") {
 				persistentData.value.adminMode = true;
-
-				localStorage.setItem("adminMode", "true");
 				password.value = "";
 				passwordError.value = false;
 				showPasswordInput.value = false;
@@ -149,32 +131,48 @@ export default {
 			}
 		}
 
-		// Toggle admin mode button
 		function toggleAdminMode() {
 			if (!persistentData.value.adminMode) {
 				showPasswordInput.value = true;
 			} else {
-				// Exit admin mode: force Favorites page and lock menu
 				persistentData.value.adminMode = false;
-				localStorage.setItem("adminMode", "false");
 				showPasswordInput.value = false;
 				viewPage("favorites");
 			}
 		}
+
+		// ---------- FAVORITES ----------
+		if (!persistentData.value.favorites) persistentData.value.favorites = [];
+
+		// Compute favoriteCount from persistentData.favorites
+		const favoriteCount = computed(() => persistentData.value.favorites.length);
+
+		// Optional: reactive set of favorite IDs for fast lookup
+		const favoriteIds = computed(
+			() => new Set(persistentData.value.favorites.map((s) => s.id))
+		);
+
+		// Watch for changes to favorites to ensure reactive count
+		// watch(
+		// 	() => persistentData.value.favorites,
+		// 	(newVal) => {
+		// 		// reactive, so favoriteCount updates automatically
+		// 	},
+		// 	{ deep: true }
+		// );
 
 		return {
 			viewPage,
 			persistentData,
 			page,
 			streamCountDisplay,
-			channelCount,
 			searchDevices,
 			visibleStreams,
 			setSidebarStatus,
-			adminMode: persistentData.adminMode, // reactive reference
 			showPasswordInput,
 			password,
 			passwordError,
+			streamCount,
 			checkPassword,
 			toggleAdminMode,
 			favoriteCount,

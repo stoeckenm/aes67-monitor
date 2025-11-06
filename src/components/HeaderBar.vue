@@ -75,6 +75,8 @@ import {
 	saveSDP,
 	rawSDP,
 	selectedStream,
+	playing,
+	stopStream,
 } from "../app.js";
 
 export default {
@@ -96,6 +98,9 @@ export default {
 	},
 	methods: {
 		deleteStream(id) {
+			if (id === playing.value) {
+				stopStream();
+			}
 			window.electronAPI.sendMessage({ type: "delete", data: id });
 			page.value = "streams";
 		},

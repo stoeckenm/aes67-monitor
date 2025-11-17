@@ -18,14 +18,13 @@ export const visibleStreams = ref(0);
 export const playing = ref("");
 export const currentStream = ref("");
 
-// Persistent config
+// --- Persistent (machine-wide) config ---
 export const persistentData = ref({
 	settings: {
 		bufferSize: 16,
 		bufferEnabled: true,
 		hideUnsupported: true,
 		sdpDeleteTimeout: 300,
-		sidebarCollapsed: false,
 		followSystemAudio: true,
 		audioInterface: null,
 	},
@@ -33,12 +32,20 @@ export const persistentData = ref({
 		interfaces: [],
 		currentInterface: "",
 	},
-	favorites: [],
-	loaded: false,
 	devices: [],
 });
 
-// --- Shared Settings ---
+// --- User config ---
+export const userData = ref({
+	settings: {
+		sidebarCollapsed: false,
+		window: { width: 1280, height: 800, x: null, y: null, maximized: true },
+		favoritesOrder: [],
+	},
+	favorites: [],
+});
+
+// --- Load both configs ---
 async function loadSharedConfig() {
 	if (!window.electronAPI) {
 		console.warn("Electron API not available — running in browser?");
@@ -48,39 +55,72 @@ async function loadSharedConfig() {
 	const config = await window.electronAPI.getSharedConfig();
 	if (!config) return;
 
+	// Merge machine-wide persistent config
 	persistentData.value = {
 		...persistentData.value,
-		settings: { ...persistentData.value.settings, ...config.settings },
-		network: { ...persistentData.value.network, ...config.network },
-		favorites: config.favorites || [],
-		devices: config.devices || [],
-		loaded: true,
+		settings: {
+			...persistentData.value.settings,
+			...config.persistentData.settings,
+		},
+		network: {
+			...persistentData.value.network,
+			...config.persistentData.network,
+		},
+		devices: {
+			...persistentData.value.devices,
+			...config.persistentData.devices,
+		},
+	};
+
+	// Merge user config
+	userData.value = {
+		...userData.value,
+		settings: { ...userData.value.settings, ...config.userData.settings },
+		favorites: config.userData.favorites || [],
 	};
 }
 
-export function saveSharedConfig() {
+// --- Save only persistent config ---
+export function savePersistentConfig() {
 	if (!window.electronAPI) return;
 
-	const plainConfig = JSON.parse(
-		JSON.stringify({
-			settings: persistentData.value.settings,
-			network: persistentData.value.network,
-			favorites: persistentData.value.favorites,
-			devices: persistentData.value.devices,
-		})
-	);
+	window.electronAPI.sendMessage({
+		type: "savePersistent",
+		key: "persistentData",
+		data: JSON.stringify(persistentData.value),
+	});
+}
 
-	window.electronAPI.saveSharedConfig(plainConfig);
+// --- Save only user config ---
+export function saveUserConfig() {
+	if (!window.electronAPI) return;
+	window.electronAPI.sendMessage({
+		type: "saveUser",
+		key: "userData",
+		data: JSON.stringify(userData.value),
+	});
 }
 
 // Auto-load on startup
 loadSharedConfig();
 
-// Watch for changes
+// --- Watchers ---
+let persistTimer;
 watch(
-	() => persistentData,
+	() => persistentData.value,
 	() => {
-		saveSharedConfig();
+		clearTimeout(persistTimer);
+		persistTimer = setTimeout(() => savePersistentConfig(), 300);
+	},
+	{ deep: true }
+);
+
+let userTimer;
+watch(
+	() => userData.value,
+	() => {
+		clearTimeout(userTimer);
+		userTimer = setTimeout(() => saveUserConfig(), 300);
 	},
 	{ deep: true }
 );
@@ -95,12 +135,7 @@ export const rawSDP = ref({
 export const isBackBtnActive = () => ["stream", "sdp"].includes(page.value);
 
 export const goBack = () => {
-	switch (page.value) {
-		case "stream":
-		case "sdp":
-			page.value = "streams";
-			break;
-	}
+	if (["stream", "sdp"].includes(page.value)) page.value = "streams";
 };
 
 export const getTitle = () => {
@@ -120,7 +155,6 @@ export const isPageSearchable = () =>
 	["streams", "devices"].includes(page.value);
 
 export const viewPage = (newPage) => {
-	if (page.value === "settings") saveSettings();
 	page.value = newPage;
 };
 
@@ -134,8 +168,8 @@ export const getPageTitle = () => {
 
 // --- Sidebar ---
 export const setSidebarStatus = (status) => {
-	persistentData.value.settings.sidebarCollapsed = status;
-	updatePersistentData("settings");
+	userData.value.settings.sidebarCollapsed = status;
+	saveUserConfig();
 };
 
 // --- Search / Filters ---
@@ -155,33 +189,29 @@ export const searchStreams = () => {
 };
 
 export const searchDevices = computed(() => {
-	const devices = [...new Set(streams.value.map((s) => s.origin.address))];
+	// List of all device IPs
+	const deviceIPs = [...new Set(streams.value.map((s) => s.origin.address))];
 
-	if (!persistentData.value.devices) persistentData.value.devices = {};
+	// Build a derived list of devices with metadata (NON-PERSISTED)
+	const derivedDeviceList = deviceIPs.map((ip) => {
+		const relatedStreams = streams.value.filter((s) => s.origin.address === ip);
 
-	for (let device of devices) {
-		const count = streams.value.filter(
-			(s) => s.origin.address === device
-		).length;
-		persistentData.value.devices[device] = persistentData.value.devices[
-			device
-		] || {
-			name: device,
-			description: "-",
-			count,
+		return {
+			ip,
+			name: ip, // (or a friendly default)
+			description: "-", // (or derive something)
+			count: relatedStreams.length,
 		};
-		persistentData.value.devices[device].count = count;
-	}
+	});
 
-	return devices.filter((device) => {
+	// Filter by search term
+	return derivedDeviceList.filter((device) => {
+		const term = search.value.devices.toLowerCase();
+
 		return (
-			device.includes(search.value.devices) ||
-			persistentData.value.devices[device].name
-				.toLowerCase()
-				.includes(search.value.devices.toLowerCase()) ||
-			persistentData.value.devices[device].description
-				.toLowerCase()
-				.includes(search.value.devices.toLowerCase())
+			device.ip.toLowerCase().includes(term) ||
+			device.name.toLowerCase().includes(term) ||
+			device.description.toLowerCase().includes(term)
 		);
 	});
 });
@@ -193,8 +223,7 @@ export const getDate = (timestamp) => new Date(timestamp).toLocaleString();
 export const viewDevice = (device) => {
 	search.value.streams = device;
 	page.value = "streams";
-	const inputEl = document.getElementById("search-input");
-	if (inputEl) inputEl.focus();
+	document.getElementById("search-input")?.focus();
 };
 
 export const getTextareaRowNumber = () => {
@@ -348,22 +377,6 @@ export const sendMessage = (message) => {
 	} else {
 		console.error("Cannot send message to Electron backend!");
 	}
-};
-
-export const updatePersistentData = (key) => {
-	sendMessage({
-		type: "save",
-		key,
-		data: JSON.stringify(persistentData.value[key]),
-	});
-};
-
-// --- Settings ---
-export const saveSettings = () => {
-	const address = document.getElementById("networkSelect")?.value;
-	updatePersistentData("settings");
-	if (address) sendMessage({ type: "setNetwork", data: address });
-	page.value = "streams";
 };
 
 // --- Electron Message Receiver ---

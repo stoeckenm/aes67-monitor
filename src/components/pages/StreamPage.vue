@@ -169,44 +169,40 @@
 		</div>
 	</div>
 </template>
-
 <script>
+import { ref, watch } from "vue";
 import {
 	selectedStream,
-	persistentData,
+	saveUserConfig,
 	getTextareaRowNumber,
-	updatePersistentData,
 } from "../../app.js";
-import { ref, watch } from "vue";
 
 export default {
 	name: "StreamPage",
 	setup() {
-		// Ensure persistent storage for friendly names exists
-		if (!persistentData.value.settings.friendlyNames) {
-			persistentData.value.settings.friendlyNames = {};
+		// Ensure selectedStream has a friendlyName
+		if (!selectedStream.value.friendlyName) {
+			selectedStream.value.friendlyName = "";
 		}
 
-		// Get the current friendly name for this stream, fallback to empty
-		const streamId = selectedStream.value.id;
-		const storedName =
-			persistentData.value.settings.friendlyNames[streamId] || "";
-		const friendlyName = ref(storedName);
+		const friendlyName = ref(selectedStream.value.friendlyName);
 
-		// Sync reactive value to selectedStream for display
-		selectedStream.value.friendly_name = friendlyName.value;
-
-		// Watch for changes and persist to persistentData
+		// Sync reactive input with selectedStream.friendlyName
 		watch(friendlyName, (newVal) => {
-			selectedStream.value.friendly_name = newVal;
-			persistentData.value.settings.friendlyNames[streamId] = newVal;
-			updatePersistentData("settings");
+			selectedStream.value.friendlyName = newVal;
+			saveUserConfig(); // persist the whole selectedStream object as usual
+		});
+
+		// Optional: handle stream changes dynamically
+		watch(selectedStream, (newStream) => {
+			if (!newStream.friendlyName) newStream.friendlyName = "";
+			friendlyName.value = newStream.friendlyName;
 		});
 
 		return {
 			selectedStream,
-			getTextareaRowNumber,
 			friendlyName,
+			getTextareaRowNumber,
 		};
 	},
 };
@@ -217,7 +213,3 @@ li > span {
 	word-wrap: break-word;
 }
 </style>
-
-// ADD FRIENDLY NAMES TO EVERYTHING // ADD FRIENDLY NAMES TO EVERYTHING // ADD
-FRIENDLY NAMES TO EVERYTHING // ADD FRIENDLY NAMES TO EVERYTHING // ADD FRIENDLY
-NAMES TO EVERYTHING //uodate streams list, and favorites list

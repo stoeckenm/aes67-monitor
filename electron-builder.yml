@@ -4,33 +4,30 @@ artifactName: "${name}-${version}-${os}-${arch}.${ext}"
 directories:
   output: release-builds
 
-# OS specific settings
-mac:
-  icon: "icon/icon.ico"
-  target:
-    - target: dmg
-      arch: [x64, arm64]
-    - target: zip
-      arch: [x64, arm64]
-
 win:
   icon: "icon/icon.png"
   target:
-    - target: msi
-      arch: [x64]
-    - target: zip
+    - target: nsis
       arch: [x64]
 
-linux:
-  icon: "icon/icon.png"
-  target:
-    - target: deb
-      arch: [x64, arm64]
-    - target: rpm
-      arch: [x64, arm64]
-    - target: zip
-      arch: [x64, arm64]
+nsis:
+  oneClick: false # Show wizard installer
+  perMachine: true # Install to C:\Program Files
+  createDesktopShortcut: true # Optional desktop shortcut
+  createStartMenuShortcut: true # Adds Start Menu entry
+  shortcutName: "Stream Monitor"
 
-# Target specific settings
-msi:
-  oneClick: false
+# Only include the built app
+files:
+  - "dist/**" # built renderer
+  - "package.json"
+  - "main.js" # your main process
+  - "preload.js" # preload scripts
+  - "node_modules/**" # dependencies
+  - "src/lib/**" # runtime libraries
+  - "config.json" # default config if needed
+  - "icon/**"
+
+asar: true
+asarUnpack:
+  - "node_modules/audify/**" # native module

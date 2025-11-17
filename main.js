@@ -1,163 +1,183 @@
 const { app, BrowserWindow, ipcMain } = require("electron/main");
 const path = require("node:path");
-const fs = require("node:fs");
+const fs = require("node:fs/promises"); // async fs
 const crypto = require("crypto");
 const os = require("os");
 const { RtAudio, RtAudioApi } = require("audify");
 const { fork } = require("child_process");
-const { log } = require("node:console");
 
 // ---------------------------
 // Paths and config
 // ---------------------------
-const configDir =
+
+// Shared (machine-wide) config
+const persistentDir =
 	process.platform === "win32"
 		? path.join(process.env.ProgramData, "StreamMonitor")
-		: path.join(app.getPath("userData"), "StreamMonitor");
+		: path.join("/etc/StreamMonitor");
 
-fs.mkdirSync(configDir, { recursive: true });
-const configPath = path.join(configDir, "config.json");
+const persistentPath = path.join(persistentDir, "config.json");
 
-// Store user_data separately for cache etc.
-app.setPath("userData", path.join(__dirname, "user_data"));
+// User config (AppData)
+const userDir = path.join(app.getPath("appData"), "StreamMonitor");
+const userPath = path.join(userDir, "user.json");
 
-// ---------------------------
-// Default persistentData
-// ---------------------------
+// User data folder for cache/logs
+app.setPath("userData", path.join(userDir, "user_data"));
+
+// Machine-wide data (network, audio devices, etc.)
 let persistentData = {
 	settings: {
 		bufferSize: 16,
 		bufferEnabled: true,
 		hideUnsupported: true,
 		sdpDeleteTimeout: 300,
-		sidebarCollapsed: false,
 		followSystemAudio: true,
-		audioInterface: null, // <-- saved audio device
+		audioInterface: null,
 	},
-	network: {
-		interfaces: [],
-		currentInterface: "",
-	},
-	favorites: [],
+	network: { interfaces: [], currentInterface: "" },
 	devices: [],
 };
 
-// At the top, after imports and persistentData is initialized
-ipcMain.handle("get-shared-config", async () => {
-	// Always return the latest persistentData
-	return persistentData;
-});
+// Per-user data (UI state, favorites, etc.)
+let userData = {
+	settings: {
+		sidebarCollapsed: false,
+		window: { width: 1280, height: 800, x: null, y: null, maximized: true },
+		favoritesOrder: [],
+	},
+	favorites: [],
+};
 
 // ---------------------------
-// Load config from disk
-// ---------------------------
-try {
-	if (fs.existsSync(configPath)) {
-		const data = fs.readFileSync(configPath, "utf-8");
-		const parsed = JSON.parse(data);
-
-		// Merge loaded config with defaults to ensure all keys exist
-		persistentData = {
-			settings: { ...persistentData.settings, ...(parsed.settings || {}) },
-			network: { ...persistentData.network, ...(parsed.network || {}) },
-			favorites: parsed.favorites || persistentData.favorites,
-			devices: parsed.devices || persistentData.devices,
-		};
-	} else {
-		fs.writeFileSync(configPath, JSON.stringify(persistentData, null, 2));
-	}
-} catch (err) {
-	console.error("Error loading config:", err);
-}
-
-// ---------------------------
-// Save helper
-// ---------------------------
-function saveConfig() {
-	try {
-		fs.writeFileSync(configPath, JSON.stringify(persistentData, null, 2));
-	} catch (err) {
-		console.error("Error saving config:", err);
-	}
-}
-
-// ---------------------------
-// Global variables
+// Globals
 // ---------------------------
 let mainWindow;
 let networkInterfaces = [];
 let currentNetworkInterface = null;
 let currentAudioDevice = null;
 let audioAPI = RtAudioApi.UNSPECIFIED;
+let rtAudio;
 let isSDPInitialized = false;
 let streamsHash = null;
 let currentPlayArgs = null;
 let previousAudioDevice = null;
+let sdpProcess = null;
+let audioProcess = null;
 
 // ---------------------------
-// Set audio API based on OS
+// Helper: Send to renderer
 // ---------------------------
-switch (process.platform) {
-	case "darwin":
-		audioAPI = RtAudioApi.MACOSX_CORE;
-		break;
-	case "win32":
-		audioAPI = RtAudioApi.WINDOWS_WASAPI;
-		break;
-	case "linux":
-		audioAPI = RtAudioApi.LINUX_ALSA;
-		break;
-}
-
-const rtAudio = new RtAudio(audioAPI);
-
-// ---------------------------
-// Spawn child processes
-// ---------------------------
-const sdpProcess = fork(path.join(__dirname, "./src/lib/sdp.js"));
-const audioProcess = fork(path.join(__dirname, "./src/lib/audio.js"));
-
-// ---------------------------
-// Main window
-// ---------------------------
-function createMainWindow() {
-	mainWindow = new BrowserWindow({
-		width: 1920,
-		height: 1080,
-		autoHideMenuBar: false,
-		webPreferences: {
-			preload: path.join(__dirname, "preload.js"),
-			contextIsolation: true,
-			nodeIntegration: false,
-		},
-	});
-
-	if (app.isPackaged) {
-		mainWindow.loadFile("./dist/index.html");
-		mainWindow.webContents.on("before-input-event", (event, input) => {
-			if (
-				(input.key.toLowerCase() === "r" && (input.control || input.meta)) ||
-				input.key === "F5"
-			) {
-				event.preventDefault();
-			}
-		});
-	} else {
-		mainWindow.loadURL("http://localhost:8888");
+function sendMessage(type, data) {
+	if (mainWindow) {
+		mainWindow.webContents.send("send-message", { type, data });
 	}
-
-	ipcMain.on("recv-message", (event, message) => handleIpcMessage(message));
 }
+
+// ---------------------------
+// Async config load
+// ---------------------------
+async function loadPersistentData() {
+	try {
+		await fs.mkdir(persistentDir, { recursive: true });
+		const exists = await fs
+			.access(persistentPath)
+			.then(() => true)
+			.catch(() => false);
+		if (exists) {
+			const data = JSON.parse(await fs.readFile(persistentPath, "utf-8"));
+			persistentData = {
+				...persistentData,
+				...data,
+				settings: { ...persistentData.settings, ...(data.settings || {}) },
+				network: { ...persistentData.network, ...(data.network || {}) },
+				devices: { ...persistentData.devices, ...(data.devices || {}) },
+			};
+		}
+	} catch (err) {
+		console.error("Error loading persistentData:", err);
+	}
+}
+
+async function loadUserData() {
+	try {
+		await fs.mkdir(userDir, { recursive: true });
+		const exists = await fs
+			.access(userPath)
+			.then(() => true)
+			.catch(() => false);
+		if (exists) {
+			const data = JSON.parse(await fs.readFile(userPath, "utf-8"));
+			userData = {
+				...userData,
+				...data,
+				settings: { ...userData.settings, ...(data.settings || {}) },
+			};
+		}
+	} catch (err) {
+		console.error("Error loading userData:", err);
+	}
+}
+
+// ---------------------------
+// Async config save
+// ---------------------------
+function saveWindowState(win) {
+	if (!win) return;
+
+	const bounds = win.getBounds();
+	userData.settings.window = {
+		width: bounds.width,
+		height: bounds.height,
+		x: bounds.x,
+		y: bounds.y,
+		maximized: win.isMaximized(),
+	};
+
+	saveUserData();
+}
+
+async function savePersistentData() {
+	try {
+		await fs.mkdir(persistentDir, { recursive: true });
+		await fs.writeFile(persistentPath, JSON.stringify(persistentData, null, 2));
+	} catch (err) {
+		console.error("Error saving persistentData:", err);
+	}
+}
+// !!!!!!!!!!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!!!!!!!!!
+// TODO:
+// FRIENDLY NAMES WERDEN NICHT GESPEICHER
+
+async function saveUserData() {
+	try {
+		await fs.mkdir(userDir, { recursive: true });
+		await fs.writeFile(userPath, JSON.stringify(userData, null, 2));
+	} catch (err) {
+		console.error("Error saving userData:", err);
+	}
+}
+
+// ---------------------------
+// IPC Handlers
+// ---------------------------
+ipcMain.handle("get-shared-config", async () => ({
+	persistentData,
+	userData,
+}));
+
+ipcMain.on("recv-message", (event, message) => handleIpcMessage(message));
 
 // ---------------------------
 // IPC message handling
 // ---------------------------
-function handleIpcMessage(message) {
+async function handleIpcMessage(message) {
 	switch (message.type) {
 		case "update":
 			sendMessage("updatePersistentData", persistentData);
 			updateSystem();
-			sdpProcess.send({ type: "update" });
+			sdpProcess?.send({ type: "update" });
 			break;
 
 		case "setAudioInterface":
@@ -166,7 +186,7 @@ function handleIpcMessage(message) {
 
 		case "restart":
 			refreshCurrentAudioInterface();
-			audioProcess.send({
+			audioProcess?.send({
 				type: "restart",
 				data: {
 					networkInterface: currentNetworkInterface?.address || "",
@@ -179,83 +199,263 @@ function handleIpcMessage(message) {
 			refreshCurrentAudioInterface();
 			currentPlayArgs = {
 				...message.data,
-				audioAPI: audioAPI,
+				audioAPI,
 				networkInterface: currentNetworkInterface?.address || "",
 				selected: currentAudioDevice,
 			};
-			audioProcess.send({ type: "start", data: currentPlayArgs });
+			audioProcess?.send({ type: "start", data: currentPlayArgs });
 			break;
 
 		case "stop":
-			audioProcess.send({ type: "stop" });
+			audioProcess?.send({ type: "stop" });
 			break;
 
 		case "addStream":
-			sdpProcess.send({ type: "add", data: message.data });
+			sdpProcess?.send({ type: "add", data: message.data });
 			break;
 
 		case "delete":
-			sdpProcess.send({ type: "delete", data: message.data });
+			sdpProcess?.send({ type: "delete", data: message.data });
 			break;
 
 		case "setNetwork":
 			if (currentNetworkInterface?.address !== message.data) {
-				console.log("Got new network interface", message.data);
 				persistentData.network.currentInterface = message.data;
 				updateNetworkInterfaces();
-				audioProcess.send({ type: "stop" });
-				sdpProcess.send({ type: "interface", data: message.data });
-				saveConfig();
+				audioProcess?.send({ type: "stop" });
+				sdpProcess?.send({ type: "interface", data: message.data });
+				savePersistentData();
+			}
+			break;
+		// Generic 'save' from renderer: message.key is a top-level key of persistentData
+		case "save":
+			try {
+				const parsed = JSON.parse(message.data);
+				// Only allow saving keys that are top-level members of persistentData
+				if (
+					message.key &&
+					Object.prototype.hasOwnProperty.call(persistentData, message.key)
+				) {
+					persistentData[message.key] = parsed;
+
+					// React to special keys
+					if (
+						message.key === "network" &&
+						persistentData.network.currentInterface
+					) {
+						currentNetworkInterface =
+							persistentData.network.interfaces.find(
+								(i) => i.address === persistentData.network.currentInterface
+							) || persistentData.network.interfaces[0];
+					}
+
+					if (message.key === "settings") {
+						// inform SDP about delete timeout change
+						if (sdpProcess) {
+							sdpProcess.send({
+								type: "deleteTimeout",
+								data: persistentData.settings.sdpDeleteTimeout,
+							});
+						}
+					}
+
+					await savePersistentData();
+				} else {
+					console.warn("save: unknown persistentData key:", message.key);
+				}
+			} catch (err) {
+				console.error("save: invalid JSON payload", err);
 			}
 			break;
 
-		case "save":
-			if (message.key && persistentData.hasOwnProperty(message.key)) {
-				persistentData[message.key] = JSON.parse(message.data);
-
-				if (
-					message.key === "network" &&
-					persistentData.network.currentInterface
+		// Save entire or partial persistentData object — handle carefully to avoid nesting
+		case "savePersistent":
+			try {
+				const parsed = JSON.parse(message.data);
+				if (message.key === "persistentData") {
+					// Replace/merge the root object (avoid creating persistentData.persistentData)
+					// Merge shallow to keep default fields present
+					persistentData = {
+						...persistentData,
+						...parsed,
+						settings: {
+							...persistentData.settings,
+							...(parsed.settings || {}),
+						},
+						network: { ...persistentData.network, ...(parsed.network || {}) },
+					};
+				} else if (
+					message.key &&
+					Object.prototype.hasOwnProperty.call(persistentData, message.key)
 				) {
-					currentNetworkInterface =
-						persistentData.network.interfaces.find(
-							(i) => i.address === persistentData.network.currentInterface
-						) || persistentData.network.interfaces[0];
+					persistentData[message.key] = parsed;
+				} else {
+					console.warn("savePersistent: unexpected key:", message.key);
 				}
-
-				if (message.key === "settings") {
-					sdpProcess.send({
-						type: "deleteTimeout",
-						data: persistentData.settings.sdpDeleteTimeout,
-					});
-				}
-
-				saveConfig();
-			} else {
-				console.warn("Unknown key for save:", message.key);
+				await savePersistentData();
+			} catch (err) {
+				console.error("savePersistent: failed to parse or save", err);
 			}
+			break;
+
+		// Save entire or partial userData
+		case "saveUser":
+			try {
+				const parsed = JSON.parse(message.data);
+				if (message.key === "userData") {
+					userData = {
+						...userData,
+						...parsed,
+						settings: { ...userData.settings, ...(parsed.settings || {}) },
+					};
+				} else if (
+					message.key &&
+					Object.prototype.hasOwnProperty.call(userData, message.key)
+				) {
+					userData[message.key] = parsed;
+				} else {
+					console.warn("saveUser: unexpected key:", message.key);
+				}
+				await saveUserData();
+			} catch (err) {
+				console.error("saveUser: failed to parse or save", err);
+			}
+			break;
+
+		case "setNetwork":
+			if (persistentData.network.currentInterface !== message.data) {
+				persistentData.network.currentInterface = message.dsata;
+				savePersistentData();
+			}
+			break;
+
+		case "saveWindow":
+			saveWindowState(mainWindow);
 			break;
 
 		default:
-			console.log("Unknown IPC message type:", message.type, message.data);
+			console.warn("Unknown IPC message type:", message.type);
 	}
 }
 
 // ---------------------------
-// Send messages to renderer
+// Create Main Window
 // ---------------------------
-function sendMessage(type, data) {
-	if (mainWindow) {
-		try {
-			mainWindow.webContents.send("send-message", { type, data });
-		} catch (err) {
-			console.error("Error sending message:", err);
+function getWindowState() {
+	const s = userData.settings.window;
+
+	return {
+		width: s.width || 1280,
+		height: s.height || 800,
+		x: s.x ?? undefined,
+		y: s.y ?? undefined,
+		maximized: s.maximized ?? true,
+	};
+}
+
+function createMainWindow() {
+	// Load saved window state
+	const winState = getWindowState();
+
+	mainWindow = new BrowserWindow({
+		width: winState.width,
+		height: winState.height,
+		x: winState.x !== null ? winState.x : undefined,
+		y: winState.y !== null ? winState.y : undefined,
+		autoHideMenuBar: false,
+		show: false, // we show it only after ready-to-show
+		webPreferences: {
+			preload: path.join(__dirname, "preload.js"),
+			contextIsolation: true,
+			nodeIntegration: false,
+		},
+	});
+
+	// Restore window maximize state
+	if (winState.maximized) {
+		mainWindow.maximize();
+	}
+
+	// Save state on change
+	mainWindow.on("resize", () => saveWindowState(mainWindow));
+	mainWindow.on("move", () => saveWindowState(mainWindow));
+	mainWindow.on("maximize", () => saveWindowState(mainWindow));
+	mainWindow.on("unmaximize", () => saveWindowState(mainWindow));
+
+	// Load your app
+	if (app.isPackaged) {
+		mainWindow.loadFile("./dist/index.html");
+	} else {
+		mainWindow.loadURL("http://localhost:8888");
+	}
+
+	// Show window when it's fully ready
+	mainWindow.once("ready-to-show", () => {
+		mainWindow.show();
+	});
+
+	// Block refresh
+	if (app.isPackaged) {
+		mainWindow.webContents.on("before-input-event", (event, input) => {
+			if (
+				(input.key.toLowerCase() === "r" && (input.control || input.meta)) ||
+				input.key === "F5"
+			) {
+				event.preventDefault();
+			}
+		});
+	}
+
+	ipcMain.on("recv-message", (event, message) => handleIpcMessage(message));
+}
+
+// ---------------------------
+// Lazy Initialization
+// ---------------------------
+async function lazyInit() {
+	// Set audio API based on OS
+	switch (process.platform) {
+		case "darwin":
+			audioAPI = RtAudioApi.MACOSX_CORE;
+			break;
+		case "win32":
+			audioAPI = RtAudioApi.WINDOWS_WASAPI;
+			break;
+		case "linux":
+			audioAPI = RtAudioApi.LINUX_ALSA;
+			break;
+	}
+	rtAudio = new RtAudio(audioAPI);
+
+	// Spawn child processes
+	sdpProcess = fork(path.join(__dirname, "./src/lib/sdp.js"));
+	audioProcess = fork(path.join(__dirname, "./src/lib/audio.js"));
+
+	// Listen for SDP messages
+	sdpProcess.on("message", (data) => {
+		sendMessage("streams", data);
+
+		const combinedRaw = data.map((s) => (s.manual ? s.raw : "")).join("");
+		const newHash = crypto
+			.createHash("sha256")
+			.update(combinedRaw)
+			.digest("hex");
+
+		if (newHash !== streamsHash) {
+			streamsHash = newHash;
+			savePersistentData();
 		}
-	}
+	});
+
+	// Restore saved audio interface
+	restoreAudioInterface();
+
+	// Start system update loop
+	setInterval(updateSystem, 500);
 }
 
 // ---------------------------
-// Network interface management
+// Network / Audio helpers
 // ---------------------------
 function updateNetworkInterfaces() {
 	const interfaces = os.networkInterfaces();
@@ -270,18 +470,15 @@ function updateNetworkInterfaces() {
 		}
 	}
 
-	// Ensure network object exists
 	persistentData.network = persistentData.network || {
 		interfaces: [],
 		currentInterface: "",
 	};
-
 	persistentData.network.interfaces = addresses.map((a) => ({
 		name: a.name,
 		address: a.address,
 	}));
 
-	// Determine current interface
 	let currentAddr = persistentData.network.currentInterface
 		? addresses.find(
 				(a) => a.address === persistentData.network.currentInterface
@@ -299,16 +496,13 @@ function updateNetworkInterfaces() {
 	}
 
 	networkInterfaces = addresses;
-	saveConfig();
+	savePersistentData();
 }
 
-// ---------------------------
-// Audio interface management
-// ---------------------------
 function updateAudioInterfaces() {
-	let devices = rtAudio.getDevices();
-	devices = devices.filter((d) => d.inputChannels > 0 || d.outputChannels > 0);
-
+	const devices = rtAudio
+		.getDevices()
+		.filter((d) => d.inputChannels > 0 || d.outputChannels > 0);
 	devices.forEach((d) => (d.isCurrent = currentAudioDevice?.id === d.id));
 	sendMessage("audioDevices", devices);
 }
@@ -344,7 +538,6 @@ function setAudioInterface(device) {
 
 	previousAudioDevice = currentAudioDevice;
 
-	// Save to persistentData
 	persistentData.settings.audioInterface = currentAudioDevice
 		? {
 				name: currentAudioDevice.name,
@@ -354,78 +547,11 @@ function setAudioInterface(device) {
 		  }
 		: null;
 
-	saveConfig();
+	savePersistentData();
 	updateAudioInterfaces();
 }
 
-function restartStream() {
-	handleIpcMessage({ type: "stop" });
-	sendMessage("refreshAfterDeviceChange");
-}
-
-function refreshCurrentAudioInterface() {
-	setAudioInterface(currentAudioDevice);
-}
-
-// ---------------------------
-// System update loop
-// ---------------------------
-function updateSystem() {
-	updateNetworkInterfaces();
-	refreshCurrentAudioInterface();
-
-	if (!isSDPInitialized && currentNetworkInterface) {
-		console.log("Initializing SDP...");
-		isSDPInitialized = true;
-		sdpProcess.send({ type: "init", data: currentNetworkInterface.address });
-		sdpProcess.send({
-			type: "deleteTimeout",
-			data: persistentData.settings.sdpDeleteTimeout,
-		});
-	}
-
-	sendMessage("interfaces", networkInterfaces);
-}
-
-// ---------------------------
-// SDP child process
-// ---------------------------
-sdpProcess.on("message", (data) => {
-	sendMessage("streams", data);
-
-	const combinedRaw = data.map((s) => (s.manual ? s.raw : "")).join("");
-	const newHash = crypto.createHash("sha256").update(combinedRaw).digest("hex");
-
-	if (newHash !== streamsHash) {
-		streamsHash = newHash;
-		saveConfig();
-	}
-});
-
-// ---------------------------
-// App ready
-// ---------------------------
-app.whenReady().then(() => {
-	createMainWindow();
-
-	app.on("activate", () => {
-		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
-	});
-});
-
-// ---------------------------
-// App close
-// ---------------------------
-app.on("window-all-closed", () => {
-	sdpProcess.kill();
-	audioProcess.kill();
-	app.quit();
-});
-
-// ---------------------------
-// Restore audio interface from persistentData
-// ---------------------------
-(function restoreAudioInterface() {
+function restoreAudioInterface() {
 	const devices = rtAudio.getDevices();
 	let savedDevice = persistentData.settings.audioInterface
 		? devices.find(
@@ -439,11 +565,56 @@ app.on("window-all-closed", () => {
 		: devices.find((d) => d.isDefaultOutput);
 
 	if (!savedDevice) savedDevice = devices.find((d) => d.isDefaultOutput);
-
 	if (savedDevice) setAudioInterface(savedDevice);
-})();
+}
+
+function refreshCurrentAudioInterface() {
+	setAudioInterface(currentAudioDevice);
+}
+
+function restartStream() {
+	handleIpcMessage({ type: "stop" });
+	sendMessage("refreshAfterDeviceChange");
+}
 
 // ---------------------------
-// Start periodic updates
+// System update loop
 // ---------------------------
-setInterval(updateSystem, 500);
+function updateSystem() {
+	updateNetworkInterfaces();
+	refreshCurrentAudioInterface();
+
+	if (!isSDPInitialized && currentNetworkInterface) {
+		console.log("Initializing SDP...");
+		isSDPInitialized = true;
+		sdpProcess?.send({ type: "init", data: currentNetworkInterface.address });
+		sdpProcess?.send({
+			type: "deleteTimeout",
+			data: persistentData.settings.sdpDeleteTimeout,
+		});
+	}
+
+	sendMessage("interfaces", networkInterfaces);
+}
+
+// ---------------------------
+// App lifecycle
+// ---------------------------
+
+app.whenReady().then(async () => {
+	await loadPersistentData();
+	await loadUserData();
+
+	createMainWindow();
+	lazyInit();
+
+	app.on("activate", () => {
+		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+	});
+});
+
+app.on("window-all-closed", () => {
+	sdpProcess?.kill();
+	audioProcess?.kill();
+	app.quit();
+});

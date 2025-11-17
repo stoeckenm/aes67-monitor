@@ -2,7 +2,7 @@
 	<div
 		class="alert alert-primary"
 		role="alert"
-		v-if="favoriteStreams.length === 0"
+		v-if="sortedStreamsLocal?.length === 0"
 	>
 		No favorite streams found.
 		<span v-if="streamCount == 0">
@@ -12,7 +12,7 @@
 
 	<!-- GRID of favorites -->
 	<draggable
-		v-if="sortedStreamsLocal.length > 0"
+		v-if="sortedStreamsLocal?.length > 0"
 		v-model="sortedStreamsLocal"
 		item-key="id"
 		:disabled="!persistentData.adminMode"
@@ -30,7 +30,7 @@
 					>
 						<div>
 							<h4 class="card-title text-truncate mb-1">
-								{{ getFriendlyName(stream) }}
+								{{ stream.friendlyName || stream.name || "-" }}
 							</h4>
 						</div>
 
@@ -76,8 +76,9 @@ import {
 	playStream,
 	visibleStreams,
 	persistentData,
+	userData,
 	getCurrentSupportedSampleRates,
-	updatePersistentData,
+	saveUserConfig,
 	stopStream,
 } from "../../app.js";
 import { ref, watch } from "vue";
@@ -86,104 +87,98 @@ export default {
 	name: "FavoritesPage",
 	components: { draggable },
 	setup() {
-		/* ---------- FAVORITES ---------- */
-		if (!persistentData.value.favorites) persistentData.value.favorites = [];
+		/* ---------- FAVORITES INITIALIZATION ---------- */
+		if (!userData.value.favorites) userData.value.favorites = [];
 
-		// Use full stream objects
-		const favoriteStreams = ref([...persistentData.value.favorites]);
+		// Ensure each favorite has an order field
+		userData.value.favorites.forEach((f, idx) => {
+			if (f.order === undefined) f.order = idx;
+		});
 
-		// Initialize saved order
-		if (!persistentData.value.settings.favoritesOrder)
-			persistentData.value.settings.favoritesOrder = [];
-		const savedOrder = ref([...persistentData.value.settings.favoritesOrder]);
+		// Reactive local copy for draggable
+		const sortedStreamsLocal = ref(
+			[...userData.value.favorites].sort((a, b) => a.order - b.order)
+		);
 
-		// Sorted streams for grid
-		const sortedStreamsLocal = ref([]);
+		/* ---------- KEEP LOCAL COPY IN SYNC ---------- */
+		watch(
+			() => userData.value.favorites,
+			(newFavs) => {
+				sortedStreamsLocal.value = [...newFavs].sort(
+					(a, b) => a.order - b.order
+				);
+			},
+			{ deep: true, immediate: true }
+		);
 
-		function sortStreamsBySavedOrder() {
-			const streamsCopy = [...favoriteStreams.value];
-			streamsCopy.sort((a, b) => {
-				const indexA = savedOrder.value.findIndex((id) => id === a.id);
-				const indexB = savedOrder.value.findIndex((id) => id === b.id);
-				if (indexA === -1 && indexB === -1) return 0;
-				if (indexA === -1) return 1;
-				if (indexB === -1) return -1;
-				return indexA - indexB;
+		/* ---------- SAVE ORDER AFTER DRAG ---------- */
+		function saveOrder() {
+			// Update order based on current local array
+			sortedStreamsLocal.value.forEach((s, idx) => {
+				s.order = idx;
 			});
-			sortedStreamsLocal.value = streamsCopy;
-		}
 
-		sortStreamsBySavedOrder();
+			// Persist to main favorites array
+			userData.value.favorites = [...sortedStreamsLocal.value];
+			saveUserConfig();
+		}
 
 		/* ---------- FAVORITE MANAGEMENT ---------- */
 		function toggleFavorite(stream) {
-			const index = favoriteStreams.value.findIndex((s) => s.id === stream.id);
+			const index = userData.value.favorites.findIndex(
+				(s) => s.id === stream.id
+			);
 			if (index === -1) {
-				favoriteStreams.value.push(stream);
+				// Add new favorite at the end
+				stream.order = userData.value.favorites.length;
+				userData.value.favorites.push(stream);
 			} else {
-				favoriteStreams.value.splice(index, 1);
+				userData.value.favorites.splice(index, 1);
 			}
-			persistentData.value.favorites = [...favoriteStreams.value];
-			updatePersistentData("favorites");
-			sortStreamsBySavedOrder();
+
+			// Sync local array
+			sortedStreamsLocal.value = [...userData.value.favorites].sort(
+				(a, b) => a.order - b.order
+			);
+
+			saveUserConfig();
+		}
+
+		function removeFavorite(stream) {
+			if (stream.id === playing.value) stopStream();
+
+			const index = userData.value.favorites.findIndex(
+				(s) => s.id === stream.id
+			);
+			if (index !== -1) {
+				userData.value.favorites.splice(index, 1);
+
+				// Recalculate order for remaining favorites
+				userData.value.favorites.forEach((f, idx) => (f.order = idx));
+				sortedStreamsLocal.value = [...userData.value.favorites];
+
+				saveUserConfig();
+			}
 		}
 
 		function isFavorite(stream) {
-			return favoriteStreams.value.some((s) => s.id === stream.id);
+			return userData.value.favorites.some((s) => s.id === stream.id);
 		}
 
-		/* ---------- SORT ORDER MANAGEMENT ---------- */
-		function saveOrder() {
-			const order = sortedStreamsLocal.value.map((s) => s.id);
-			savedOrder.value = order;
-			persistentData.value.settings.favoritesOrder = order;
-			updatePersistentData("settings");
-		}
-
-		/* ---------- FRIENDLY NAMES ---------- */
-		function getFriendlyName(stream) {
-			const names = persistentData.value.settings.friendlyNames || {};
-			return names[stream.id]?.trim() || stream.name;
-		}
-
-		// Watch for external changes to favorites
-		watch(
-			() => persistentData.value.favorites,
-			(newFavs) => {
-				favoriteStreams.value = [...newFavs];
-				sortStreamsBySavedOrder();
-			},
-			{ deep: true }
-		);
-
-		function removeFavorite(stream) {
-			if (stream.id === playing.value) {
-				stopStream();
-			}
-
-			const index = favoriteStreams.value.findIndex((s) => s.id === stream.id);
-			if (index !== -1) {
-				favoriteStreams.value.splice(index, 1);
-				persistentData.value.favorites = [...favoriteStreams.value];
-				updatePersistentData("favorites");
-				sortStreamsBySavedOrder();
-			}
-		}
-
+		/* ---------- RETURN TO TEMPLATE ---------- */
 		return {
-			favoriteStreams,
 			sortedStreamsLocal,
 			saveOrder,
-			getFriendlyName,
+			removeFavorite,
+			toggleFavorite,
+			isFavorite,
 			streamCount,
 			playing,
 			playStream,
 			visibleStreams,
+			userData,
 			persistentData,
 			getCurrentSupportedSampleRates,
-			toggleFavorite,
-			isFavorite,
-			removeFavorite,
 		};
 	},
 };

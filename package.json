@@ -7,12 +7,12 @@
 	},
 	"homepage": "https://aes67.app",
 	"description": "Audio over IP Stream Monitor",
-	"version": "1.1.0",
+	"version": "1.1.4",
 	"private": true,
 	"main": "main.js",
 	"scripts": {
 		"serve": "vue-cli-service serve --port 8888",
-		"build": "vue-cli-service build && electron-builder --win portable",
+		"build": "vue-cli-service build && electron-builder --win --x64",
 		"lint": "vue-cli-service lint",
 		"format": "prettier --write .",
 		"start": "electron ."

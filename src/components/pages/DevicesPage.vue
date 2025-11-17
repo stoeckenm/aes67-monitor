@@ -63,44 +63,42 @@
 		</tbody>
 	</table>
 </template>
-
 <script>
-import { ref, watch } from "vue";
-import { persistentData, updatePersistentData, viewDevice } from "../../app.js";
+import { ref, computed } from "vue";
+import {
+	persistentData,
+	searchDevices,
+	viewDevice,
+	savePersistentConfig,
+} from "../../app.js";
 
 export default {
 	name: "DevicesPage",
 	setup() {
 		const editDevice = ref("");
 
-		// Convert persistentData.devices object to ref array
-		const devices = ref(
-			Object.entries(persistentData.value.devices || {}).map(
-				([address, info]) => ({
-					address,
-					name: info.name,
-					description: info.description,
-					count: info.count,
-				})
-			)
-		);
+		// Computed devices list for display
+		const devices = computed(() => {
+			return searchDevices.value.map((d) => {
+				const stored = persistentData.value.devices[d.ip] || {};
+				return {
+					address: d.ip,
+					name: stored.name || d.name,
+					description: stored.description || d.description,
+					count: d.count,
+				};
+			});
+		});
 
-		// Watch the devices array and update persistentData when changed
-		watch(
-			devices,
-			(newVal) => {
-				persistentData.value.devices = {};
-				newVal.forEach((d) => {
-					persistentData.value.devices[d.address] = {
-						name: d.name,
-						description: d.description,
-						count: d.count,
-					};
-				});
-				updatePersistentData("devices");
-			},
-			{ deep: true }
-		);
+		// Function to update a device when editing finishes
+		const updateDevice = (device) => {
+			persistentData.value.devices[device.address] = {
+				name: device.name,
+				description: device.description,
+				count: device.count,
+			};
+			savePersistentConfig();
+		};
 
 		const edit = (address) => {
 			if (editDevice.value === address) editDevice.value = "";
@@ -111,6 +109,7 @@ export default {
 			devices,
 			editDevice,
 			edit,
+			updateDevice,
 			viewDevice,
 		};
 	},

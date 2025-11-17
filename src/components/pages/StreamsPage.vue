@@ -56,7 +56,7 @@
 		<tbody>
 			<template v-for="stream in sortedStreams" :key="stream.id">
 				<tr>
-					<td>{{ getFriendlyName(stream) }}</td>
+					<td>{{ stream.friendlyName || "-" }}</td>
 					<td>{{ stream.name }}</td>
 					<td>
 						<span class="badge bg-primary me-1" v-if="stream.dante">Dante</span>
@@ -181,10 +181,10 @@ import {
 	playStream,
 	visibleStreams,
 	playing,
-	persistentData,
+	userData,
 	streamIndex,
 	getCurrentSupportedSampleRates,
-	updatePersistentData,
+	saveUserConfig,
 } from "../../app.js";
 import { ref, computed } from "vue";
 
@@ -211,15 +211,14 @@ export default {
 					return stream.mcast || "";
 				case "address":
 					return stream.origin?.address || "";
-				case "format":
+				case "format": {
 					if (stream.isSupported) {
 						return `${stream.codec || ""} ${stream.samplerate || ""}Hz ${
 							stream.channels || ""
 						}`;
-					} else {
-						return "";
 					}
-
+					return "";
+				}
 				case "info":
 					return stream.media?.[0]?.description || "";
 				case "tags": {
@@ -235,24 +234,22 @@ export default {
 			}
 		}
 
-		/* ---------- FRIENDLY NAMES ---------- */
-		function getFriendlyName(stream) {
-			const names = persistentData.value.settings.friendlyNames || {};
-			return names[stream.id]?.trim() || "-";
-		}
+		/* ---------- FAVORITES MANAGEMENT ---------- */
+		if (!userData.value.favorites) userData.value.favorites = [];
 
-		/* ---------- FAVORITES (Full Stream Objects) ---------- */
-		if (!persistentData.value.favorites) persistentData.value.favorites = [];
-		const favorites = ref([...persistentData.value.favorites]);
+		// Make a reactive copy of favorites
+		const favorites = ref([...userData.value.favorites]);
 
 		function storeFavorites() {
-			persistentData.value.favorites = [...favorites.value];
-			updatePersistentData("favorites");
+			userData.value.favorites = [...favorites.value];
+			saveUserConfig();
 		}
 
 		function toggleFavorite(stream) {
 			const index = favorites.value.findIndex((s) => s.id === stream.id);
 			if (index === -1) {
+				// Add new favorite at the end using order field
+				stream.order = favorites.value.length;
 				favorites.value.push(stream);
 			} else {
 				favorites.value.splice(index, 1);
@@ -264,38 +261,41 @@ export default {
 			return favorites.value.some((s) => s.id === stream.id);
 		}
 
-		/* ---------- COMBINED STREAMS FOR DISPLAY ---------- */
-		const combinedStreams = computed(() => {
-			// Combine favorites and search streams
-			return [
-				...favorites.value, // Include favorites
-				...searchStreams(), // Include searched streams
-			];
-		});
-
-		/* ---------- REMOVE DUPLICATES BY ID AND SORT ---------- */
+		/* ---------- COMBINED STREAMS WITH FAVORITE ORDER ---------- */
 		const sortedStreams = computed(() => {
-			// Use a Set to track unique stream IDs
+			// Combine favorites and searchStreams
+			const combined = [...favorites.value, ...searchStreams()];
+
+			// Remove duplicates by stream.id, keeping the first occurrence (favorites first)
 			const seen = new Set();
-			const uniqueStreams = combinedStreams.value.filter((stream) => {
-				if (seen.has(stream.id)) {
-					return false; // Skip this stream if its ID has already been seen
-				}
-				seen.add(stream.id); // Mark this stream's ID as seen
-				return true; // Include this stream
+			const uniqueStreams = combined.filter((s) => {
+				if (seen.has(s.id)) return false;
+				seen.add(s.id);
+				return true;
 			});
 
-			// Now, sort the unique streams
-			return uniqueStreams.slice().sort((a, b) => {
+			// Sort favorites by 'order' first
+			const favoritesSet = new Set(favorites.value.map((f) => f.id));
+			uniqueStreams.sort((a, b) => {
+				const aFav = favoritesSet.has(a.id);
+				const bFav = favoritesSet.has(b.id);
+
+				if (aFav && bFav) {
+					// Both favorites: sort by order field
+					return (a.order || 0) - (b.order || 0);
+				}
+				if (aFav) return -1; // favorites come first
+				if (bFav) return 1;
+
+				// Non-favorites: sort by dynamic sortKey/Order
 				let A = getSortValue(a, sortKey.value);
 				let B = getSortValue(b, sortKey.value);
-
-				// Convert to lower case for string comparison
 				if (typeof A === "string") A = A.toLowerCase();
 				if (typeof B === "string") B = B.toLowerCase();
-
 				return A < B ? -1 * sortOrder.value : A > B ? 1 * sortOrder.value : 0;
 			});
+
+			return uniqueStreams;
 		});
 
 		return {
@@ -310,10 +310,8 @@ export default {
 			getChannelSelectValues,
 			selectedChannel,
 			playStream,
-			getFriendlyName,
 			visibleStreams,
 			playing,
-			persistentData,
 			streamIndex,
 			toggleFavorite,
 			isFavorite,

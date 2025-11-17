@@ -2,7 +2,7 @@
 	<div
 		v-cloak
 		id="app-wrapper"
-		:class="{ sidebarCollapse: persistentData.settings.sidebarCollapsed }"
+		:class="{ sidebarCollapse: userData.settings.sidebarCollapsed }"
 	>
 		<HeaderBar />
 		<SideBar />
@@ -12,7 +12,7 @@
 
 <script>
 import { computed } from "vue";
-import { persistentData, page } from "./app.js";
+import { userData, page } from "./app.js";
 
 import HeaderBar from "./components/HeaderBar.vue";
 import SideBar from "./components/SideBar.vue";
@@ -32,8 +32,8 @@ export default {
 	},
 	setup() {
 		return {
-			persistentData,
 			currentComponent,
+			userData,
 		};
 	},
 };

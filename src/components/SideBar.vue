@@ -1,11 +1,11 @@
 <template>
 	<div
 		id="sidebar-left"
-		:class="{ sidebarCollapse: persistentData.settings.sidebarCollapsed }"
+		:class="{ sidebarCollapse: userData.settings.sidebarCollapsed }"
 	>
 		<a
 			id="sidebar-logo"
-			@click="setSidebarStatus(!persistentData.settings.sidebarCollapsed)"
+			@click="setSidebarStatus(!userData.settings.sidebarCollapsed)"
 		>
 			<span class="text">Stream Monitor</span>
 			<span class="icon"><i class="bi bi-soundwave"></i></span>
@@ -25,21 +25,15 @@
 				<li id="streams-li" :class="{ active: page === 'streams' }">
 					<a @click="viewPage('streams')">
 						<i class="bi bi-speaker"></i><span>Streams</span>
-						<span
-							class="badge bg-primary"
-							@click.stop="streamCountDisplay = !streamCountDisplay"
-						>
-							<template v-if="streamCountDisplay">{{
-								visibleStreams
-							}}</template>
-							<template v-else>{{ streamCount }}</template>
+						<span class="badge bg-primary">
+							{{ streamCount }}
 						</span>
 					</a>
 				</li>
 
 				<li id="devices-li" :class="{ active: page === 'devices' }">
 					<a @click="viewPage('devices')">
-						<i class="bi bi-hdd-network"></i><span>Devices</span>
+						<i class="bi bi-hdd-network"></i><span>AES67 Devices</span>
 						<span class="badge bg-primary" id="device-count">
 							{{ searchDevices.length }}
 						</span>
@@ -48,7 +42,7 @@
 
 				<li id="interfaces-li" :class="{ active: page === 'interfaces' }">
 					<a @click="viewPage('interfaces')">
-						<i class="bi bi-pci-card-sound"></i><span>Interfaces</span>
+						<i class="bi bi-pci-card-sound"></i><span>Audio Interfaces</span>
 					</a>
 				</li>
 
@@ -98,9 +92,9 @@
 <script>
 import {
 	viewPage,
+	userData,
 	persistentData,
 	page,
-	streamCountDisplay,
 	setSidebarStatus,
 	searchDevices,
 	visibleStreams,
@@ -142,14 +136,14 @@ export default {
 		}
 
 		// ---------- FAVORITES ----------
-		if (!persistentData.value.favorites) persistentData.value.favorites = [];
+		if (!userData.value.favorites) userData.value.favorites = [];
 
 		// Compute favoriteCount from persistentData.favorites
-		const favoriteCount = computed(() => persistentData.value.favorites.length);
+		const favoriteCount = computed(() => userData.value.favorites.length);
 
 		// Optional: reactive set of favorite IDs for fast lookup
 		const favoriteIds = computed(
-			() => new Set(persistentData.value.favorites.map((s) => s.id))
+			() => new Set(userData.value.favorites.map((s) => s.id))
 		);
 
 		// Watch for changes to favorites to ensure reactive count
@@ -163,9 +157,9 @@ export default {
 
 		return {
 			viewPage,
+			userData,
 			persistentData,
 			page,
-			streamCountDisplay,
 			searchDevices,
 			visibleStreams,
 			setSidebarStatus,

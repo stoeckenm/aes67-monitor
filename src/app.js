@@ -127,6 +127,18 @@ watch(
 	{ deep: true }
 );
 
+watch(
+	() => playing.value,
+	(newVal) => {
+		if (window.electronAPI) {
+			window.electronAPI.sendMessage({
+				type: "playingStatus",
+				data: { isPlaying: !!newVal, streamId: newVal || null },
+			});
+		}
+	}
+);
+
 // --- Raw SDP ---
 export const rawSDP = ref({
 	sdp: "",

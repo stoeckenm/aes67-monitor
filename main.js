@@ -65,12 +65,14 @@ let currentPlayArgs = null;
 let previousAudioDevice = null;
 let sdpProcess = null;
 let audioProcess = null;
+let isStreamRunning = false;
+let systemUpdateInterval;
 
 // ---------------------------
 // Helper: Send to renderer
 // ---------------------------
 function sendMessage(type, data) {
-	if (mainWindow) {
+	if (mainWindow && !mainWindow.isDestroyed()) {
 		mainWindow.webContents.send("send-message", { type, data });
 	}
 }
@@ -330,6 +332,10 @@ async function handleIpcMessage(message) {
 			saveWindowState(mainWindow);
 			break;
 
+		case "playingStatus":
+			isStreamRunning = message.data.isPlaying;
+			break;
+
 		default:
 			console.warn("Unknown IPC message type:", message.type);
 	}
@@ -448,7 +454,7 @@ async function lazyInit() {
 	restoreAudioInterface();
 
 	// Start system update loop
-	setInterval(updateSystem, 500);
+	systemUpdateInterval = setInterval(updateSystem, 500);
 }
 
 // ---------------------------
@@ -588,7 +594,7 @@ function refreshCurrentAudioInterface() {
 }
 
 function restartStream() {
-	handleIpcMessage({ type: "stop" });
+	if (isStreamRunning) handleIpcMessage({ type: "stop" });
 	sendMessage("refreshAfterDeviceChange");
 }
 
@@ -629,6 +635,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
+	if (systemUpdateInterval) clearInterval(systemUpdateInterval);
 	sdpProcess?.kill();
 	audioProcess?.kill();
 	app.quit();

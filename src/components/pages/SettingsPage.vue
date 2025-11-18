@@ -45,7 +45,7 @@
 				<span class="input-group-text">packets</span>
 			</div>
 			<h6>Hardware</h6>
-			<div class="form-check">
+			<div class="form-check mb-3">
 				<input
 					class="form-check-input"
 					type="checkbox"
@@ -60,6 +60,14 @@
 					Always use default audio
 					<span class="form-text">(follow system audio)</span>
 				</label>
+			</div>
+			<div v-if="persistentData.settings.storedAudioInterface">
+				<h6 class="">Preferred Audio Interface</h6>
+				<div>- {{ persistentData.settings.storedAudioInterface.name }}</div>
+				<div class="form-text">
+					Will be used if availible. Overwritten by "follow system audio".
+					Select in Audio Interfaces page.
+				</div>
 			</div>
 		</div>
 		<div class="col-4">

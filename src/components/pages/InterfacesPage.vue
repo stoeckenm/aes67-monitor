@@ -96,6 +96,22 @@
 						Set as Output
 					</button>
 				</td>
+				<td>
+					<button
+						class="btn btn-sm btn-outline-warning"
+						@click="setPreferred(audioInterface)"
+					>
+						<i
+							class="bi"
+							:class="
+								persistentData.settings.storedAudioInterface?.name ===
+								audioInterface.name
+									? 'bi-star-fill text-warning'
+									: 'bi-star'
+							"
+						></i>
+					</button>
+				</td>
 			</tr>
 		</tbody>
 	</table>
@@ -112,11 +128,22 @@ import {
 export default {
 	name: "InterfacesPage",
 	setup() {
+		function setPreferred(audioInterface) {
+			if (
+				persistentData.value.settings.storedAudioInterface?.id ===
+				audioInterface.id
+			) {
+				persistentData.value.settings.storedAudioInterface = null;
+			} else {
+				persistentData.value.settings.storedAudioInterface = audioInterface;
+			}
+		}
 		return {
 			persistentData,
 			getAudioOutputDevices,
 			getAudioInputDevices,
 			setCurrentAudioInterface,
+			setPreferred,
 		};
 	},
 };

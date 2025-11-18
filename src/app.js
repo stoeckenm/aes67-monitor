@@ -27,6 +27,7 @@ export const persistentData = ref({
 		sdpDeleteTimeout: 300,
 		followSystemAudio: true,
 		audioInterface: null,
+		storedAudioInterface: null,
 	},
 	network: {
 		interfaces: [],

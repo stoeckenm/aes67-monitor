@@ -34,6 +34,7 @@ let persistentData = {
 		sdpDeleteTimeout: 300,
 		followSystemAudio: true,
 		audioInterface: null,
+		storedAudioInterface: null,
 	},
 	network: { interfaces: [], currentInterface: "" },
 	devices: [],
@@ -145,10 +146,6 @@ async function savePersistentData() {
 		console.error("Error saving persistentData:", err);
 	}
 }
-// !!!!!!!!!!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!!!!!!!!!
-// TODO:
-// FRIENDLY NAMES WERDEN NICHT GESPEICHER
 
 async function saveUserData() {
 	try {
@@ -362,7 +359,7 @@ function createMainWindow() {
 		height: winState.height,
 		x: winState.x !== null ? winState.x : undefined,
 		y: winState.y !== null ? winState.y : undefined,
-		autoHideMenuBar: false,
+		autoHideMenuBar: app.isPackaged,
 		show: false, // we show it only after ready-to-show
 		webPreferences: {
 			preload: path.join(__dirname, "preload.js"),
@@ -510,34 +507,52 @@ function updateAudioInterfaces() {
 function setAudioInterface(device) {
 	const devices = rtAudio.getDevices();
 	let defaultDevice = devices.find((d) => d.isDefaultOutput);
+	let storedDevice = persistentData.settings.storedAudioInterface;
 	let found = false;
 
-	for (const dev of devices) {
-		if (!persistentData.settings.followSystemAudio) {
-			if (
-				device &&
-				dev.name === device.name &&
-				dev.inputChannels === device.inputChannels &&
-				dev.outputChannels === device.outputChannels
-			) {
-				currentAudioDevice = dev;
-				found = true;
-				break;
-			}
+	// Try to use stored device first
+	if (storedDevice && !persistentData.settings.followSystemAudio) {
+		const matchedDevice = devices.find(
+			(d) =>
+				d.name === storedDevice.name &&
+				d.inputChannels === storedDevice.inputChannels &&
+				d.outputChannels === storedDevice.outputChannels
+		);
+		if (matchedDevice) {
+			currentAudioDevice = matchedDevice;
+			found = true;
 		}
 	}
 
-	if (!found) currentAudioDevice = defaultDevice;
+	// If no stored device found or not available, use the passed device
+	if (!found && device && !persistentData.settings.followSystemAudio) {
+		const matchedDevice = devices.find(
+			(d) =>
+				d.name === device.name &&
+				d.inputChannels === device.inputChannels &&
+				d.outputChannels === device.outputChannels
+		);
+		if (matchedDevice) {
+			currentAudioDevice = matchedDevice;
+			found = true;
+		}
+	}
 
+	// Fallback to default if nothing found
+	if (!found) {
+		currentAudioDevice = defaultDevice;
+	}
+
+	// Restart stream if device changed
 	if (previousAudioDevice) {
 		const changed =
 			currentAudioDevice.name !== previousAudioDevice.name ||
 			currentAudioDevice.id !== previousAudioDevice.id;
 		if (changed) restartStream();
 	}
-
 	previousAudioDevice = currentAudioDevice;
 
+	// Save current selection
 	persistentData.settings.audioInterface = currentAudioDevice
 		? {
 				name: currentAudioDevice.name,

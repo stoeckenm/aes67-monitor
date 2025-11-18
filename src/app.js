@@ -84,6 +84,7 @@ async function loadSharedConfig() {
 export function savePersistentConfig() {
 	if (!window.electronAPI) return;
 
+	console.log(persistentData.value);
 	window.electronAPI.sendMessage({
 		type: "savePersistent",
 		key: "persistentData",

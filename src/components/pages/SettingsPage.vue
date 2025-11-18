@@ -4,15 +4,14 @@
 			<h5 class="mb-3">Network</h5>
 			<select
 				class="form-select"
-				aria-label="Default select example"
 				id="networkSelect"
+				v-model="persistentData.network.currentInterface"
 				@change="savePersistentConfig()"
 			>
 				<option
 					v-for="networkInterface in networkInterfaces"
 					:key="networkInterface.name"
 					:value="networkInterface.address"
-					:selected="networkInterface.isCurrent"
 				>
 					{{ networkInterface.name }}: {{ networkInterface.address }}
 				</option>

@@ -38,6 +38,7 @@ let persistentData = {
 	},
 	network: { interfaces: [], currentInterface: "" },
 	devices: [],
+	favorites: [],
 };
 
 // Per-user data (UI state, favorites, etc.)
@@ -47,7 +48,6 @@ let userData = {
 		window: { width: 1280, height: 800, x: null, y: null, maximized: true },
 		favoritesOrder: [],
 	},
-	favorites: [],
 };
 
 // ---------------------------

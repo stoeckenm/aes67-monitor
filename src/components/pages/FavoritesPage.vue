@@ -88,21 +88,21 @@ export default {
 	components: { draggable },
 	setup() {
 		/* ---------- FAVORITES INITIALIZATION ---------- */
-		if (!userData.value.favorites) userData.value.favorites = [];
+		if (!persistentData.value.favorites) persistentData.value.favorites = [];
 
 		// Ensure each favorite has an order field
-		userData.value.favorites.forEach((f, idx) => {
+		persistentData.value.favorites.forEach((f, idx) => {
 			if (f.order === undefined) f.order = idx;
 		});
 
 		// Reactive local copy for draggable
 		const sortedStreamsLocal = ref(
-			[...userData.value.favorites].sort((a, b) => a.order - b.order)
+			[...persistentData.value.favorites].sort((a, b) => a.order - b.order)
 		);
 
 		/* ---------- KEEP LOCAL COPY IN SYNC ---------- */
 		watch(
-			() => userData.value.favorites,
+			() => persistentData.value.favorites,
 			(newFavs) => {
 				sortedStreamsLocal.value = [...newFavs].sort(
 					(a, b) => a.order - b.order
@@ -119,25 +119,25 @@ export default {
 			});
 
 			// Persist to main favorites array
-			userData.value.favorites = [...sortedStreamsLocal.value];
+			persistentData.value.favorites = [...sortedStreamsLocal.value];
 			saveUserConfig();
 		}
 
 		/* ---------- FAVORITE MANAGEMENT ---------- */
 		function toggleFavorite(stream) {
-			const index = userData.value.favorites.findIndex(
+			const index = persistentData.value.favorites.findIndex(
 				(s) => s.id === stream.id
 			);
 			if (index === -1) {
 				// Add new favorite at the end
-				stream.order = userData.value.favorites.length;
-				userData.value.favorites.push(stream);
+				stream.order = persistentData.value.favorites.length;
+				persistentData.value.favorites.push(stream);
 			} else {
-				userData.value.favorites.splice(index, 1);
+				persistentData.value.favorites.splice(index, 1);
 			}
 
 			// Sync local array
-			sortedStreamsLocal.value = [...userData.value.favorites].sort(
+			sortedStreamsLocal.value = [...persistentData.value.favorites].sort(
 				(a, b) => a.order - b.order
 			);
 
@@ -147,22 +147,22 @@ export default {
 		function removeFavorite(stream) {
 			if (stream.id === playing.value) stopStream();
 
-			const index = userData.value.favorites.findIndex(
+			const index = persistentData.value.favorites.findIndex(
 				(s) => s.id === stream.id
 			);
 			if (index !== -1) {
-				userData.value.favorites.splice(index, 1);
+				persistentData.value.favorites.splice(index, 1);
 
 				// Recalculate order for remaining favorites
-				userData.value.favorites.forEach((f, idx) => (f.order = idx));
-				sortedStreamsLocal.value = [...userData.value.favorites];
+				persistentData.value.favorites.forEach((f, idx) => (f.order = idx));
+				sortedStreamsLocal.value = [...persistentData.value.favorites];
 
 				saveUserConfig();
 			}
 		}
 
 		function isFavorite(stream) {
-			return userData.value.favorites.some((s) => s.id === stream.id);
+			return persistentData.value.favorites.some((s) => s.id === stream.id);
 		}
 
 		/* ---------- RETURN TO TEMPLATE ---------- */

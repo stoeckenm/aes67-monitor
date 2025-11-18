@@ -175,13 +175,13 @@ import {
 	searchStreams,
 	streams,
 	streamCount,
+	persistentData,
 	viewStream,
 	getChannelSelectValues,
 	selectedChannel,
 	playStream,
 	visibleStreams,
 	playing,
-	userData,
 	streamIndex,
 	getCurrentSupportedSampleRates,
 	saveUserConfig,
@@ -235,13 +235,13 @@ export default {
 		}
 
 		/* ---------- FAVORITES MANAGEMENT ---------- */
-		if (!userData.value.favorites) userData.value.favorites = [];
+		if (!persistentData.value.favorites) persistentData.value.favorites = [];
 
 		// Make a reactive copy of favorites
-		const favorites = ref([...userData.value.favorites]);
+		const favorites = ref([...persistentData.value.favorites]);
 
 		function storeFavorites() {
-			userData.value.favorites = [...favorites.value];
+			persistentData.value.favorites = [...favorites.value];
 			saveUserConfig();
 		}
 
@@ -304,6 +304,7 @@ export default {
 			sortKey,
 			sortOrder,
 			searchStreams,
+			persistentData,
 			streams,
 			streamCount,
 			viewStream,

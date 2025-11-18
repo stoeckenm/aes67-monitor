@@ -34,6 +34,7 @@ export const persistentData = ref({
 		currentInterface: "",
 	},
 	devices: [],
+	favorites: [],
 });
 
 // --- User config ---
@@ -43,7 +44,6 @@ export const userData = ref({
 		window: { width: 1280, height: 800, x: null, y: null, maximized: true },
 		favoritesOrder: [],
 	},
-	favorites: [],
 });
 
 // --- Load both configs ---
@@ -77,7 +77,7 @@ async function loadSharedConfig() {
 	userData.value = {
 		...userData.value,
 		settings: { ...userData.value.settings, ...config.userData.settings },
-		favorites: config.userData.favorites || [],
+		favorites: config.persistentData.favorites || [],
 	};
 }
 

@@ -136,14 +136,14 @@ export default {
 		}
 
 		// ---------- FAVORITES ----------
-		if (!userData.value.favorites) userData.value.favorites = [];
+		if (!persistentData.value.favorites) persistentData.value.favorites = [];
 
 		// Compute favoriteCount from persistentData.favorites
-		const favoriteCount = computed(() => userData.value.favorites.length);
+		const favoriteCount = computed(() => persistentData.value.favorites.length);
 
 		// Optional: reactive set of favorite IDs for fast lookup
 		const favoriteIds = computed(
-			() => new Set(userData.value.favorites.map((s) => s.id))
+			() => new Set(persistentData.value.favorites.map((s) => s.id))
 		);
 
 		// Watch for changes to favorites to ensure reactive count

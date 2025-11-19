@@ -7,7 +7,7 @@
 	},
 	"homepage": "https://aes67.app",
 	"description": "Audio over IP Stream Monitor",
-	"version": "1.2.0",
+	"version": "1.2.2",
 	"private": true,
 	"main": "main.js",
 	"scripts": {

@@ -1,68 +1,41 @@
-name: Build and Release App
+name: Windows Release Only
 
 on:
+  # Löst den Workflow aus, wenn ein Tag gepusht wird, was für Releases Standard ist.
   push:
     tags:
-      - "*"
+      - "v[0-9]+.*" # Baut nur, wenn ein Tag wie z.B. v1.2.0 gepusht wird.
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    runs-on: ${{ matrix.os }}
+  build-and-release:
+    # Nur der Windows-Runner wird ausgeführt
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        # fetch-depth: 0 ist wichtig, damit electron-builder die Git-Tags sieht.
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "22" # Behält Ihre bestehende Node.js Version bei
 
-      - name: Set version
+      - name: Set correct package.json version
+        # Setzt die Version in package.json auf den Git Tag (z.B. 1.2.0)
         run: npm version ${{ github.ref_name }} --no-git-tag-version
 
       - name: Install Dependencies
         run: npm install
 
-      - name: Build Frontend
-        run: npx vue-cli-service build
-
-      - name: Package App
-        run: npx electron-builder --publish never
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Artifacts-${{ runner.os }}
-          path: |
-            release-builds/*.msi
-            release-builds/*.zip
-            release-builds/*.deb
-            release-builds/*.rpm
-            release-builds/*.dmg
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: Stream Monitor ${{ github.ref_name }}
-          draft: true
-          files: |
-            artifacts/**/*.msi
-            artifacts/**/*.zip
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*.dmg
+      - name: Build and Publish (Windows x64)
+        # Setzt das GitHub Token, damit electron-builder das Release erstellen kann.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Führt Ihren Skriptbefehl "npm run build" aus:
+        # "vue-cli-service build && electron-builder --win --x64"
+        # electron-builder erkennt das GH_TOKEN und erstellt automatisch das Release
+        # inkl. Upload der .exe/.msi Dateien.
+        run: npm run build

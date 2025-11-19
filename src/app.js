@@ -47,45 +47,51 @@ export const userData = ref({
 });
 
 // --- Load both configs ---
+let applyingFromMain = false;
+
 async function loadSharedConfig() {
 	if (!window.electronAPI) {
 		console.warn("Electron API not available — running in browser?");
 		return;
 	}
+	applyingFromMain = true;
+	try {
+		const config = await window.electronAPI.getSharedConfig();
+		if (!config) return;
 
-	const config = await window.electronAPI.getSharedConfig();
-	if (!config) return;
+		// Merge machine-wide persistent config
+		persistentData.value = {
+			...persistentData.value,
+			settings: {
+				...persistentData.value.settings,
+				...config.persistentData.settings,
+			},
+			network: {
+				...persistentData.value.network,
+				...config.persistentData.network,
+			},
+			// Arrays must remain arrays
+			devices: Array.isArray(config.persistentData.devices)
+				? config.persistentData.devices
+				: persistentData.value.devices,
+			favorites: Array.isArray(config.persistentData.favorites)
+				? config.persistentData.favorites
+				: persistentData.value.favorites,
+		};
 
-	// Merge machine-wide persistent config
-	persistentData.value = {
-		...persistentData.value,
-		settings: {
-			...persistentData.value.settings,
-			...config.persistentData.settings,
-		},
-		network: {
-			...persistentData.value.network,
-			...config.persistentData.network,
-		},
-		devices: {
-			...persistentData.value.devices,
-			...config.persistentData.devices,
-		},
-	};
-
-	// Merge user config
-	userData.value = {
-		...userData.value,
-		settings: { ...userData.value.settings, ...config.userData.settings },
-		favorites: config.persistentData.favorites || [],
-	};
+		// Merge user config (no favorites here)
+		userData.value = {
+			...userData.value,
+			settings: { ...userData.value.settings, ...config.userData.settings },
+		};
+	} finally {
+		applyingFromMain = false;
+	}
 }
 
 // --- Save only persistent config ---
 export function savePersistentConfig() {
 	if (!window.electronAPI) return;
-
-	console.log(persistentData.value);
 	window.electronAPI.sendMessage({
 		type: "savePersistent",
 		key: "persistentData",
@@ -111,6 +117,7 @@ let persistTimer;
 watch(
 	() => persistentData.value,
 	() => {
+		if (applyingFromMain) return; // do not write back while applying from main
 		clearTimeout(persistTimer);
 		persistTimer = setTimeout(() => savePersistentConfig(), 300);
 	},
@@ -121,6 +128,7 @@ let userTimer;
 watch(
 	() => userData.value,
 	() => {
+		if (applyingFromMain) return;
 		clearTimeout(userTimer);
 		userTimer = setTimeout(() => saveUserConfig(), 300);
 	},
@@ -147,11 +155,9 @@ export const rawSDP = ref({
 
 // --- UI Helpers ---
 export const isBackBtnActive = () => ["stream", "sdp"].includes(page.value);
-
 export const goBack = () => {
 	if (["stream", "sdp"].includes(page.value)) page.value = "streams";
 };
-
 export const getTitle = () => {
 	switch (page.value) {
 		case "stream":
@@ -164,14 +170,11 @@ export const getTitle = () => {
 			return page.value.charAt(0).toUpperCase() + page.value.slice(1);
 	}
 };
-
 export const isPageSearchable = () =>
 	["streams", "devices"].includes(page.value);
-
 export const viewPage = (newPage) => {
 	page.value = newPage;
 };
-
 export const getPageTitle = () => {
 	switch (page.value) {
 		case "stream":
@@ -205,11 +208,9 @@ export const searchStreams = () => {
 export const searchDevices = computed(() => {
 	// List of all device IPs
 	const deviceIPs = [...new Set(streams.value.map((s) => s.origin.address))];
-
 	// Build a derived list of devices with metadata (NON-PERSISTED)
 	const derivedDeviceList = deviceIPs.map((ip) => {
 		const relatedStreams = streams.value.filter((s) => s.origin.address === ip);
-
 		return {
 			ip,
 			name: ip, // (or a friendly default)
@@ -217,11 +218,9 @@ export const searchDevices = computed(() => {
 			count: relatedStreams.length,
 		};
 	});
-
 	// Filter by search term
 	return derivedDeviceList.filter((device) => {
 		const term = search.value.devices.toLowerCase();
-
 		return (
 			device.ip.toLowerCase().includes(term) ||
 			device.name.toLowerCase().includes(term) ||
@@ -239,13 +238,11 @@ export const viewDevice = (device) => {
 	page.value = "streams";
 	document.getElementById("search-input")?.focus();
 };
-
 export const getTextareaRowNumber = () => {
 	return selectedStream.value?.raw
 		.split("\n")
 		.filter((line) => line.trim() !== "").length;
 };
-
 export const viewStream = (stream) => {
 	page.value = "stream";
 	selectedStream.value = stream;
@@ -257,18 +254,14 @@ export const isDevMode = () => process.env.NODE_ENV === "development";
 // --- Audio Devices ---
 export const getAudioOutputDevices = () =>
 	audioInterfaces.value.filter((d) => d.outputChannels > 0);
-
 export const getDefaultAudioOutputDevice = () =>
 	audioInterfaces.value.find((d) => d.isDefaultOutput);
-
 export const getCurrentAudioOutput = () =>
 	audioInterfaces.value.filter((d) => d.outputChannels > 0 && d.isCurrent);
-
 export const getCurrentSupportedSampleRates = () => {
 	const currentDevice = getCurrentAudioOutput();
 	return currentDevice.length > 0 ? currentDevice[0].sampleRates : [];
 };
-
 export const getAudioInputDevices = () =>
 	audioInterfaces.value.filter((d) => d.inputChannels > 0);
 
@@ -294,13 +287,11 @@ export const getChannelSelectValues = (stream) => {
 			});
 		}
 	}
-
 	const values = stereo.concat(mono);
 	if (!selectedChannel.value[stream.id]) {
 		selectedChannel.value[stream.id] = values[0].value;
 		streamIndex.value[stream.id] = 0;
 	}
-
 	return values;
 };
 
@@ -314,21 +305,17 @@ export const stopStream = () => {
 export const playStream = (stream) => {
 	currentStream.value = stream;
 	getChannelSelectValues(stream);
-
 	if (playing.value === stream.id) {
 		playing.value = "";
 		currentStream.value = null;
 		sendMessage({ type: "stop" });
 		return;
 	}
-
 	playing.value = stream.id;
-
 	const channelMapping = selectedChannel.value[stream.id].split(",");
 	const streamMapping = streamIndex.value[stream.id];
 	const channel0 = parseInt(channelMapping[0]);
 	const channel1 = parseInt(channelMapping[1]);
-
 	if (stream.media[streamMapping]?.rtp?.[0]) {
 		const rtp = stream.media[streamMapping].rtp[0];
 		const data = {
@@ -365,14 +352,11 @@ export const setCurrentAudioInterface = (device) => {
 			outputChannels: device.outputChannels,
 		};
 	}
-
 	sendMessage({
 		type: "setAudioInterface",
 		data,
 	});
-
 	if (device) persistentData.value.settings.audioInterface = { ...device };
-
 	if (playing.value) sendMessage({ type: "restart" });
 };
 
@@ -416,7 +400,10 @@ if (window.electronAPI) {
 				interfaceCount.value = message.data.length;
 				break;
 			case "updatePersistentData":
+				// Apply from main without triggering a save ping-pong
+				applyingFromMain = true;
 				persistentData.value = message.data;
+				applyingFromMain = false;
 				break;
 			case "refreshAfterDeviceChange":
 				console.log("refresh after device change");
@@ -427,7 +414,6 @@ if (window.electronAPI) {
 				console.log(message.type, message.data);
 		}
 	});
-
 	sendMessage({ type: "update" });
 } else {
 	console.log("Running outside Electron");

@@ -6,16 +6,14 @@ const os = require("os");
 const { RtAudio, RtAudioApi } = require("audify");
 const { fork } = require("child_process");
 
-// ---------------------------
+// -----------------------------------------------------
 // Paths and config
-// ---------------------------
-
+// -----------------------------------------------------
 // Shared (machine-wide) config
 const persistentDir =
 	process.platform === "win32"
 		? path.join(process.env.ProgramData, "StreamMonitor")
 		: path.join("/etc/StreamMonitor");
-
 const persistentPath = path.join(persistentDir, "config.json");
 
 // User config (AppData)
@@ -41,7 +39,7 @@ let persistentData = {
 	favorites: [],
 };
 
-// Per-user data (UI state, favorites, etc.)
+// Per-user data (UI state, etc.)
 let userData = {
 	settings: {
 		sidebarCollapsed: false,
@@ -50,9 +48,9 @@ let userData = {
 	},
 };
 
-// ---------------------------
+// -----------------------------------------------------
 // Globals
-// ---------------------------
+// -----------------------------------------------------
 let mainWindow;
 let networkInterfaces = [];
 let currentNetworkInterface = null;
@@ -68,18 +66,64 @@ let audioProcess = null;
 let isStreamRunning = false;
 let systemUpdateInterval;
 
-// ---------------------------
+// -----------------------------------------------------
 // Helper: Send to renderer
-// ---------------------------
+// -----------------------------------------------------
 function sendMessage(type, data) {
 	if (mainWindow && !mainWindow.isDestroyed()) {
 		mainWindow.webContents.send("send-message", { type, data });
 	}
 }
 
-// ---------------------------
+// -----------------------------------------------------
+// Atomic, debounced saving (persistent + user)
+// -----------------------------------------------------
+let saveTimer = null;
+let lastSavedJSON = "";
+
+let saveUserTimer = null;
+let lastUserSavedJSON = "";
+
+async function writeAtomic(filePath, data, dirToEnsure) {
+	const tmp = `${filePath}.tmp`;
+	await fs.mkdir(dirToEnsure, { recursive: true });
+	await fs.writeFile(tmp, data);
+	await fs.rename(tmp, filePath); // atomic on most platforms
+}
+
+function scheduleSavePersistentData(reason = "") {
+	clearTimeout(saveTimer);
+	saveTimer = setTimeout(async () => {
+		try {
+			const json = JSON.stringify(persistentData, null, 2);
+			if (json !== lastSavedJSON) {
+				await writeAtomic(persistentPath, json, persistentDir);
+				lastSavedJSON = json;
+			}
+		} catch (err) {
+			console.error("Error saving persistentData:", err);
+		}
+	}, 300);
+}
+
+function scheduleSaveUserData(reason = "") {
+	clearTimeout(saveUserTimer);
+	saveUserTimer = setTimeout(async () => {
+		try {
+			const json = JSON.stringify(userData, null, 2);
+			if (json !== lastUserSavedJSON) {
+				await writeAtomic(userPath, json, userDir);
+				lastUserSavedJSON = json;
+			}
+		} catch (err) {
+			console.error("Error saving userData:", err);
+		}
+	}, 300);
+}
+
+// -----------------------------------------------------
 // Async config load
-// ---------------------------
+// -----------------------------------------------------
 async function loadPersistentData() {
 	try {
 		await fs.mkdir(persistentDir, { recursive: true });
@@ -87,6 +131,7 @@ async function loadPersistentData() {
 			.access(persistentPath)
 			.then(() => true)
 			.catch(() => false);
+
 		if (exists) {
 			const data = JSON.parse(await fs.readFile(persistentPath, "utf-8"));
 			persistentData = {
@@ -94,8 +139,15 @@ async function loadPersistentData() {
 				...data,
 				settings: { ...persistentData.settings, ...(data.settings || {}) },
 				network: { ...persistentData.network, ...(data.network || {}) },
-				devices: { ...persistentData.devices, ...(data.devices || {}) },
+				devices: Array.isArray(data.devices)
+					? data.devices
+					: persistentData.devices,
+				favorites: Array.isArray(data.favorites)
+					? data.favorites
+					: persistentData.favorites,
 			};
+			// seed lastSavedJSON to avoid immediate rewrite on startup
+			lastSavedJSON = JSON.stringify(persistentData, null, 2);
 		}
 	} catch (err) {
 		console.error("Error loading persistentData:", err);
@@ -116,18 +168,18 @@ async function loadUserData() {
 				...data,
 				settings: { ...userData.settings, ...(data.settings || {}) },
 			};
+			lastUserSavedJSON = JSON.stringify(userData, null, 2);
 		}
 	} catch (err) {
 		console.error("Error loading userData:", err);
 	}
 }
 
-// ---------------------------
-// Async config save
-// ---------------------------
+// -----------------------------------------------------
+// Save window state
+// -----------------------------------------------------
 function saveWindowState(win) {
 	if (!win) return;
-
 	const bounds = win.getBounds();
 	userData.settings.window = {
 		width: bounds.width,
@@ -136,31 +188,12 @@ function saveWindowState(win) {
 		y: bounds.y,
 		maximized: win.isMaximized(),
 	};
-
-	saveUserData();
+	scheduleSaveUserData("window-state");
 }
 
-async function savePersistentData() {
-	try {
-		await fs.mkdir(persistentDir, { recursive: true });
-		await fs.writeFile(persistentPath, JSON.stringify(persistentData, null, 2));
-	} catch (err) {
-		console.error("Error saving persistentData:", err);
-	}
-}
-
-async function saveUserData() {
-	try {
-		await fs.mkdir(userDir, { recursive: true });
-		await fs.writeFile(userPath, JSON.stringify(userData, null, 2));
-	} catch (err) {
-		console.error("Error saving userData:", err);
-	}
-}
-
-// ---------------------------
-// IPC Handlers
-// ---------------------------
+// -----------------------------------------------------
+// IPC Handlers (calls from renderer)
+// -----------------------------------------------------
 ipcMain.handle("get-shared-config", async () => ({
 	persistentData,
 	userData,
@@ -168,9 +201,6 @@ ipcMain.handle("get-shared-config", async () => ({
 
 ipcMain.on("recv-message", (event, message) => handleIpcMessage(message));
 
-// ---------------------------
-// IPC message handling
-// ---------------------------
 async function handleIpcMessage(message) {
 	switch (message.type) {
 		case "update":
@@ -223,21 +253,20 @@ async function handleIpcMessage(message) {
 				updateNetworkInterfaces();
 				audioProcess?.send({ type: "stop" });
 				sdpProcess?.send({ type: "interface", data: message.data });
-				savePersistentData();
+				scheduleSavePersistentData("setNetwork");
 			}
 			break;
+
 		// Generic 'save' from renderer: message.key is a top-level key of persistentData
 		case "save":
 			try {
 				const parsed = JSON.parse(message.data);
-				// Only allow saving keys that are top-level members of persistentData
 				if (
 					message.key &&
 					Object.prototype.hasOwnProperty.call(persistentData, message.key)
 				) {
 					persistentData[message.key] = parsed;
 
-					// React to special keys
 					if (
 						message.key === "network" &&
 						persistentData.network.currentInterface
@@ -247,7 +276,6 @@ async function handleIpcMessage(message) {
 								(i) => i.address === persistentData.network.currentInterface
 							) || persistentData.network.interfaces[0];
 					}
-
 					if (message.key === "settings") {
 						// inform SDP about delete timeout change
 						if (sdpProcess) {
@@ -257,8 +285,7 @@ async function handleIpcMessage(message) {
 							});
 						}
 					}
-
-					await savePersistentData();
+					scheduleSavePersistentData("save:key");
 				} else {
 					console.warn("save: unknown persistentData key:", message.key);
 				}
@@ -267,13 +294,12 @@ async function handleIpcMessage(message) {
 			}
 			break;
 
-		// Save entire or partial persistentData object — handle carefully to avoid nesting
+		// Save entire or partial persistentData object
 		case "savePersistent":
 			try {
 				const parsed = JSON.parse(message.data);
 				if (message.key === "persistentData") {
-					// Replace/merge the root object (avoid creating persistentData.persistentData)
-					// Merge shallow to keep default fields present
+					// controlled merge to keep defaults and correct arrays
 					persistentData = {
 						...persistentData,
 						...parsed,
@@ -282,6 +308,12 @@ async function handleIpcMessage(message) {
 							...(parsed.settings || {}),
 						},
 						network: { ...persistentData.network, ...(parsed.network || {}) },
+						devices: Array.isArray(parsed.devices)
+							? parsed.devices
+							: persistentData.devices,
+						favorites: Array.isArray(parsed.favorites)
+							? parsed.favorites
+							: persistentData.favorites,
 					};
 				} else if (
 					message.key &&
@@ -291,7 +323,7 @@ async function handleIpcMessage(message) {
 				} else {
 					console.warn("savePersistent: unexpected key:", message.key);
 				}
-				await savePersistentData();
+				scheduleSavePersistentData("savePersistent");
 			} catch (err) {
 				console.error("savePersistent: failed to parse or save", err);
 			}
@@ -315,16 +347,9 @@ async function handleIpcMessage(message) {
 				} else {
 					console.warn("saveUser: unexpected key:", message.key);
 				}
-				await saveUserData();
+				scheduleSaveUserData("saveUser");
 			} catch (err) {
 				console.error("saveUser: failed to parse or save", err);
-			}
-			break;
-
-		case "setNetwork":
-			if (persistentData.network.currentInterface !== message.data) {
-				persistentData.network.currentInterface = message.dsata;
-				savePersistentData();
 			}
 			break;
 
@@ -341,12 +366,11 @@ async function handleIpcMessage(message) {
 	}
 }
 
-// ---------------------------
+// -----------------------------------------------------
 // Create Main Window
-// ---------------------------
+// -----------------------------------------------------
 function getWindowState() {
 	const s = userData.settings.window;
-
 	return {
 		width: s.width || 1280,
 		height: s.height || 800,
@@ -359,14 +383,13 @@ function getWindowState() {
 function createMainWindow() {
 	// Load saved window state
 	const winState = getWindowState();
-
 	mainWindow = new BrowserWindow({
 		width: winState.width,
 		height: winState.height,
 		x: winState.x !== null ? winState.x : undefined,
 		y: winState.y !== null ? winState.y : undefined,
 		autoHideMenuBar: app.isPackaged,
-		show: false, // we show it only after ready-to-show
+		show: false, // show only after ready-to-show
 		webPreferences: {
 			preload: path.join(__dirname, "preload.js"),
 			contextIsolation: true,
@@ -397,7 +420,7 @@ function createMainWindow() {
 		mainWindow.show();
 	});
 
-	// Block refresh
+	// Block refresh in packaged builds
 	if (app.isPackaged) {
 		mainWindow.webContents.on("before-input-event", (event, input) => {
 			if (
@@ -409,12 +432,12 @@ function createMainWindow() {
 		});
 	}
 
-	ipcMain.on("recv-message", (event, message) => handleIpcMessage(message));
+	// NOTE: do NOT re-register ipcMain.on("recv-message") here (it already exists globally)
 }
 
-// ---------------------------
+// -----------------------------------------------------
 // Lazy Initialization
-// ---------------------------
+// -----------------------------------------------------
 async function lazyInit() {
 	// Set audio API based on OS
 	switch (process.platform) {
@@ -443,63 +466,71 @@ async function lazyInit() {
 			.createHash("sha256")
 			.update(combinedRaw)
 			.digest("hex");
-
 		if (newHash !== streamsHash) {
 			streamsHash = newHash;
-			savePersistentData();
+			// Only persist if something else also changed. Keeping this to allow state to sync if needed.
+			scheduleSavePersistentData("streams-hash");
 		}
 	});
 
 	// Restore saved audio interface
 	restoreAudioInterface();
 
-	// Start system update loop
-	systemUpdateInterval = setInterval(updateSystem, 500);
+	// Start system update loop (reduced frequency)
+	systemUpdateInterval = setInterval(updateSystem, 2000);
 }
 
-// ---------------------------
+// -----------------------------------------------------
 // Network / Audio helpers
-// ---------------------------
+// -----------------------------------------------------
+let lastNetSig = "";
+
 function updateNetworkInterfaces() {
 	const interfaces = os.networkInterfaces();
 	const addresses = [];
-
 	for (const name of Object.keys(interfaces)) {
 		for (const addr of interfaces[name]) {
 			if (addr.family === "IPv4" && addr.address !== "127.0.0.1") {
-				addr.name = name;
-				addresses.push(addr);
+				addresses.push({ name, address: addr.address });
 			}
 		}
 	}
 
-	persistentData.network = persistentData.network || {
-		interfaces: [],
-		currentInterface: "",
+	const network = {
+		interfaces: addresses.map((a) => ({ name: a.name, address: a.address })),
+		currentInterface: persistentData.network?.currentInterface || "",
 	};
-	persistentData.network.interfaces = addresses.map((a) => ({
-		name: a.name,
-		address: a.address,
-	}));
 
-	let currentAddr = persistentData.network.currentInterface
-		? addresses.find(
-				(a) => a.address === persistentData.network.currentInterface
-		  )
-		: null;
-
-	if (!currentAddr && addresses.length > 0) {
-		currentAddr = addresses[0];
-		persistentData.network.currentInterface = currentAddr.address;
+	// Pick a default if current is empty or missing
+	if (
+		!network.currentInterface ||
+		!network.interfaces.find((i) => i.address === network.currentInterface)
+	) {
+		if (addresses.length > 0) {
+			network.currentInterface = addresses[0].address;
+		} else {
+			network.currentInterface = "";
+		}
 	}
 
-	if (currentAddr) {
-		currentAddr.isCurrent = true;
-		currentNetworkInterface = currentAddr;
+	const current = network.interfaces.find(
+		(i) => i.address === network.currentInterface
+	);
+	if (current) {
+		current.isCurrent = true;
+		currentNetworkInterface = { name: current.name, address: current.address };
+	} else {
+		currentNetworkInterface = null;
 	}
 
+	persistentData.network = network;
 	networkInterfaces = addresses;
-	savePersistentData();
+
+	const sig = JSON.stringify(network);
+	if (sig !== lastNetSig) {
+		lastNetSig = sig;
+		scheduleSavePersistentData("network-change");
+	}
 }
 
 function updateAudioInterfaces() {
@@ -552,8 +583,8 @@ function setAudioInterface(device) {
 	// Restart stream if device changed
 	if (previousAudioDevice) {
 		const changed =
-			currentAudioDevice.name !== previousAudioDevice.name ||
-			currentAudioDevice.id !== previousAudioDevice.id;
+			currentAudioDevice?.name !== previousAudioDevice?.name ||
+			currentAudioDevice?.id !== previousAudioDevice?.id;
 		if (changed) restartStream();
 	}
 	previousAudioDevice = currentAudioDevice;
@@ -568,7 +599,7 @@ function setAudioInterface(device) {
 		  }
 		: null;
 
-	savePersistentData();
+	scheduleSavePersistentData("audio-interface");
 	updateAudioInterfaces();
 }
 
@@ -584,7 +615,6 @@ function restoreAudioInterface() {
 						persistentData.settings.audioInterface.outputChannels
 		  )
 		: devices.find((d) => d.isDefaultOutput);
-
 	if (!savedDevice) savedDevice = devices.find((d) => d.isDefaultOutput);
 	if (savedDevice) setAudioInterface(savedDevice);
 }
@@ -598,13 +628,12 @@ function restartStream() {
 	sendMessage("refreshAfterDeviceChange");
 }
 
-// ---------------------------
+// -----------------------------------------------------
 // System update loop
-// ---------------------------
+// -----------------------------------------------------
 function updateSystem() {
 	updateNetworkInterfaces();
 	refreshCurrentAudioInterface();
-
 	if (!isSDPInitialized && currentNetworkInterface) {
 		console.log("Initializing SDP...");
 		isSDPInitialized = true;
@@ -614,21 +643,17 @@ function updateSystem() {
 			data: persistentData.settings.sdpDeleteTimeout,
 		});
 	}
-
 	sendMessage("interfaces", networkInterfaces);
 }
 
-// ---------------------------
+// -----------------------------------------------------
 // App lifecycle
-// ---------------------------
-
+// -----------------------------------------------------
 app.whenReady().then(async () => {
 	await loadPersistentData();
 	await loadUserData();
-
 	createMainWindow();
 	lazyInit();
-
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});

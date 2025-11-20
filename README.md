@@ -38,6 +38,9 @@ Below are some screenshots showcasing the application's interface:
 ![Screenshot](.doc/streams.png "Screenshot of streams overview page")
 ![Screenshot](.doc/details.png "Screenshot of stream details page")
 ![Screenshot](.doc/settings.png "Screenshot of settings page")
+![Screenshot](.doc/favorites.png "Screenshot of favorites page")
+![Screenshot](.doc/admin_favorites.png "Screenshot of favorites page with active admin mode")
+![Screenshot](.doc/admin_settings.png "Screenshot of settings page with updated audio configs")
 
 ## Installation
 

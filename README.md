@@ -44,13 +44,13 @@ Below are some screenshots showcasing the application's interface:
 
 ## Installation
 
-See the [lastest release](https://github.com/philhartung/aes67-monitor/releases/latest) for ready-to-use binaries for MacOS, Windows and Linux. Please note that the binaries are currently not signed.
+See the [lastest release](https://github.com/stoeckenm/aes67-monitor/releases/latest) for ready-to-use binaries for MacOS, Windows and Linux. Please note that the binaries are currently not signed.
 
 ## Installation and Building from source
 
 ```
 
-git clone [https://github.com/philhartung/aes67-monitor.git](https://github.com/philhartung/aes67-monitor.git)
+git clone [https://github.com/stoeckenm/aes67-monitor.git](https://github.com/stoeckenm/aes67-monitor.git)
 cd aes67-monitor
 npm install
 

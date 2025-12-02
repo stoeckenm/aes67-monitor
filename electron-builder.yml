@@ -27,6 +27,7 @@ files:
   - "src/lib/**" # runtime libraries
   - "config.json" # default config if needed
   - "icon/**"
+  - "backend/**"
 
 asar: true
 asarUnpack:

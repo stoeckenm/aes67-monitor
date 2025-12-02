@@ -13,6 +13,7 @@ module.exports.persistentDataDefaults = {
 	network: { interfaces: [], currentInterface: "" },
 	devices: [],
 	favorites: [],
+	passwordHash: null,
 };
 
 module.exports.userDataDefaults = {

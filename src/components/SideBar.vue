@@ -100,7 +100,17 @@ import {
 	visibleStreams,
 	streamCount,
 } from "../app.js";
+
 import { ref, computed } from "vue";
+
+// Utility: hash string to SHA-256 hex
+async function sha256(str) {
+	const encoder = new TextEncoder();
+	const data = encoder.encode(str);
+	const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export default {
 	name: "SideBar",
@@ -110,12 +120,30 @@ export default {
 		const password = ref("");
 		const passwordError = ref(false);
 
+		// Ensure adminMode field exists
 		if (persistentData.value.adminMode === undefined) {
 			persistentData.value.adminMode = false;
 		}
 
-		function checkPassword() {
-			if (password.value === "tomtom") {
+		// Ensure passwordHash exists (may be null if not set)
+		if (!("passwordHash" in persistentData.value)) {
+			persistentData.value.passwordHash = null;
+		}
+
+		// Secure password check
+		async function checkPassword() {
+			// No password set → auto-unlock (failsafe)
+			if (!persistentData.value.passwordHash) {
+				persistentData.value.adminMode = true;
+				showPasswordInput.value = false;
+				password.value = "";
+				passwordError.value = false;
+				return;
+			}
+
+			const enteredHash = await sha256(password.value);
+
+			if (enteredHash === persistentData.value.passwordHash) {
 				persistentData.value.adminMode = true;
 				password.value = "";
 				passwordError.value = false;
@@ -126,34 +154,33 @@ export default {
 		}
 
 		function toggleAdminMode() {
+			// Turning ON admin mode
 			if (!persistentData.value.adminMode) {
+				// If no password set → unlock instantly
+				if (!persistentData.value.passwordHash) {
+					persistentData.value.adminMode = true;
+					return;
+				}
+
+				// Otherwise show password field
 				showPasswordInput.value = true;
-			} else {
-				persistentData.value.adminMode = false;
-				showPasswordInput.value = false;
-				viewPage("favorites");
+				return;
 			}
+
+			// Turning OFF admin mode
+			persistentData.value.adminMode = false;
+			showPasswordInput.value = false;
+			viewPage("favorites");
 		}
 
 		// ---------- FAVORITES ----------
 		if (!persistentData.value.favorites) persistentData.value.favorites = [];
 
-		// Compute favoriteCount from persistentData.favorites
 		const favoriteCount = computed(() => persistentData.value.favorites.length);
 
-		// Optional: reactive set of favorite IDs for fast lookup
 		const favoriteIds = computed(
 			() => new Set(persistentData.value.favorites.map((s) => s.id))
 		);
-
-		// Watch for changes to favorites to ensure reactive count
-		// watch(
-		// 	() => persistentData.value.favorites,
-		// 	(newVal) => {
-		// 		// reactive, so favoriteCount updates automatically
-		// 	},
-		// 	{ deep: true }
-		// );
 
 		return {
 			viewPage,

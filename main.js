@@ -25,7 +25,6 @@ const {
 const {
 	handleIpcMessage,
 	init: initIpcHandler,
-	setIsStreamRunning,
 } = require("./backend/ipc/ipcHandler");
 
 // -----------------------------------------------------
@@ -68,7 +67,7 @@ function saveWindowState(win) {
 // Helper: Restart Stream (used by audio.js)
 // -----------------------------------------------------
 function restartStream() {
-	if (isStreamRunning) handleIpcMessage({ type: "stop" });
+	handleIpcMessage({ type: "stop" });
 	sendMessage("refreshAfterDeviceChange");
 }
 

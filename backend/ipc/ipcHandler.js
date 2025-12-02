@@ -80,7 +80,7 @@ module.exports.handleIpcMessage = async (message) => {
 			break;
 
 		case "stop":
-			audioProcess?.send({ type: "stop" });
+			if (isStreamRunning) audioProcess?.send({ type: "stop" });
 			break;
 
 		case "addStream":

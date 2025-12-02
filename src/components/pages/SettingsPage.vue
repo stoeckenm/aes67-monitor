@@ -113,6 +113,22 @@
 					Collapse Sidebar
 				</label>
 			</div>
+			<h6 class="mt-4">Set Admin Password</h6>
+			<div class="input-group mb-3">
+				<input
+					type="password"
+					class="form-control"
+					placeholder="Enter new password"
+					v-model="passwordInput"
+				/>
+				<button class="btn btn-primary" @click="applyPassword">Save</button>
+			</div>
+			<div class="form-text">
+				Password is stored hashed. Leave blank to keep the existing password.
+			</div>
+			<div class="form-text text-success" v-if="passwordFeedback">
+				{{ passwordFeedback }}
+			</div>
 		</div>
 	</div>
 </template>
@@ -127,9 +143,42 @@ import {
 	userData,
 } from "../../app.js";
 
+import { ref } from "vue";
+
+// SHA-256 hashing using Web Crypto API
+async function hashPassword(password) {
+	const enc = new TextEncoder().encode(password);
+	const hashBuffer = await crypto.subtle.digest("SHA-256", enc);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export default {
 	name: "SettingsPage",
 	setup() {
+		const passwordInput = ref("");
+		const passwordFeedback = ref("");
+
+		const applyPassword = async () => {
+			if (!passwordInput.value) {
+				// Empty input → clear the passwordHash
+				persistentData.value.passwordHash = null;
+				passwordFeedback.value = "Password cleared successfully";
+			} else {
+				const hash = await hashPassword(passwordInput.value);
+				persistentData.value.passwordHash = hash;
+				passwordFeedback.value = "Password saved successfully";
+			}
+
+			passwordInput.value = "";
+			savePersistentConfig();
+
+			// Clear feedback after 3 seconds
+			setTimeout(() => {
+				passwordFeedback.value = "";
+			}, 3000);
+		};
+
 		return {
 			persistentData,
 			networkInterfaces,
@@ -137,6 +186,10 @@ export default {
 			savePersistentConfig,
 			saveUserConfig,
 			userData,
+
+			passwordInput,
+			applyPassword,
+			passwordFeedback,
 		};
 	},
 };

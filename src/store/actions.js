@@ -1,5 +1,5 @@
 // renderer/store/actions.js
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import {
 	page,
 	search,
@@ -7,7 +7,6 @@ import {
 	persistentData,
 	userData,
 	selectedStream,
-	visibleStreams,
 	audioInterfaces,
 	playing,
 	currentStream,
@@ -74,9 +73,6 @@ export const getPageTitle = () => {
 			return "Streams";
 	}
 };
-// --- Time Helper ---
-export const getDate = (timestamp) => new Date(timestamp).toLocaleString();
-
 // --- Dev Mode ---
 export const isDevMode = () => import.meta.env.DEV;
 
@@ -87,9 +83,12 @@ export const setSidebarStatus = (status) => {
 };
 
 // --- Search / Filters ---
-export const searchStreams = () => {
+// A computed, not a function with a side effect: the previous version wrote
+// visibleStreams while a computed was evaluating it, i.e. a reactive write
+// during render.
+export const filteredStreams = computed(() => {
 	const term = search.value.streams.toLowerCase();
-	const filteredStream = streams.value.filter((stream) => {
+	return streams.value.filter((stream) => {
 		return (
 			((stream.name || "").toLowerCase().includes(term) ||
 				getStreamName(stream).toLowerCase().includes(term) ||
@@ -98,23 +97,24 @@ export const searchStreams = () => {
 			(stream.isSupported || !persistentData.value.settings.hideUnsupported)
 		);
 	});
-	visibleStreams.value = filteredStream.length;
-	return filteredStream;
-};
+});
+
+export const visibleStreams = computed(() => filteredStreams.value.length);
 
 export const searchDevices = computed(() => {
-	// List of all device IPs
-	const deviceIPs = [...new Set(streams.value.map((s) => s.origin.address))];
-	// Build a derived list of devices with metadata (NON-PERSISTED)
-	const derivedDeviceList = deviceIPs.map((ip) => {
-		const relatedStreams = streams.value.filter((s) => s.origin.address === ip);
-		return {
-			ip,
-			name: ip, // (or a friendly default)
-			description: "-", // (or derive something)
-			count: relatedStreams.length,
-		};
-	});
+	// One entry per announcing device address
+	const counts = new Map();
+	for (const stream of streams.value) {
+		const ip = stream.origin?.address;
+		if (!ip) continue;
+		counts.set(ip, (counts.get(ip) || 0) + 1);
+	}
+	const derivedDeviceList = [...counts.entries()].map(([ip, count]) => ({
+		ip,
+		name: ip,
+		description: "-",
+		count,
+	}));
 	// Filter by search term
 	return derivedDeviceList.filter((device) => {
 		const term = search.value.devices.toLowerCase();
@@ -170,25 +170,45 @@ export const saveSDP = () => {
 	page.value = "streams";
 };
 
+// Pure: this is called straight from a template, where it used to also write
+// selectedChannel and streamIndex, i.e. mutate the store during render.
 export const getChannelSelectValues = (stream) => {
-	let mono = [];
-	let stereo = [];
-	for (let i = 0; i < stream.channels; i++) {
+	const mono = [];
+	const stereo = [];
+	const channels = Number(stream?.channels) || 0;
+	for (let i = 0; i < channels; i++) {
 		mono.push({ value: i + "," + i, string: i + 1 + " Mono" });
-		if (i % 2 === 0 && stream.channels > 1) {
+		if (i % 2 === 0 && channels > 1) {
 			stereo.push({
 				value: i + "," + (i + 1),
 				string: i + 1 + " + " + (i + 2) + " Stereo",
 			});
 		}
 	}
-	const values = stereo.concat(mono);
-	if (!selectedChannel.value[stream.id]) {
-		selectedChannel.value[stream.id] = values[0].value;
-		streamIndex.value[stream.id] = 0;
-	}
-	return values;
+	return stereo.concat(mono);
 };
+
+// Called when a stream first shows up, and before playback, rather than from
+// the render pass.
+export const ensureChannelDefault = (stream) => {
+	if (!stream?.id) return;
+	if (selectedChannel.value[stream.id]) return;
+	const values = getChannelSelectValues(stream);
+	if (values.length === 0) return;
+	selectedChannel.value[stream.id] = values[0].value;
+	streamIndex.value[stream.id] = 0;
+};
+
+// Keep the defaults in step with discovery without touching them mid-render.
+watch(
+	streams,
+	(list) => {
+		for (const stream of list) {
+			if (stream.isSupported) ensureChannelDefault(stream);
+		}
+	},
+	{ immediate: true },
+);
 
 export const stopStream = () => {
 	playing.value = "";
@@ -198,14 +218,21 @@ export const stopStream = () => {
 
 export const playStream = (stream) => {
 	currentStream.value = stream;
-	getChannelSelectValues(stream);
+	ensureChannelDefault(stream);
 	if (playing.value === stream.id) {
 		stopStream(); // Original logic handles stop if already playing
 		return;
 	}
+	// An unsupported stream has no channel mapping, so bail out rather than
+	// splitting undefined
+	const mapping = selectedChannel.value[stream.id];
+	if (!mapping) {
+		console.error("Cannot play stream without a channel mapping:", stream.id);
+		return;
+	}
 	playing.value = stream.id;
-	const channelMapping = selectedChannel.value[stream.id].split(",");
-	const streamMapping = streamIndex.value[stream.id];
+	const channelMapping = mapping.split(",");
+	const streamMapping = streamIndex.value[stream.id] || 0;
 	const channel0 = parseInt(channelMapping[0]);
 	const channel1 = parseInt(channelMapping[1]);
 
@@ -215,7 +242,8 @@ export const playStream = (stream) => {
 			id: stream.id,
 			mcast:
 				streamMapping > 0
-					? stream.media[streamMapping].connection.ip.split("/")[0]
+					? stream.media[streamMapping].connection?.ip?.split("/")[0] ||
+						stream.mcast
 					: stream.mcast,
 			port: stream.media[streamMapping].port,
 			codec: rtp.codec,

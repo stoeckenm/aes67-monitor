@@ -178,8 +178,16 @@ const start = function (args) {
 					bufferIndex,
 					bufferIndex + samplesPerPacket * 4 * outSampleFactor,
 				);
-				// The output device can disappear mid-stream; an unguarded throw
-				// in this handler would take the whole worker down.
+				// One output packet per received packet, so the sender paces
+				// playback and the queue stays level on its own. Backpressure
+				// cannot be measured here: audify exposes no queue depth, and
+				// getStreamLatency() reports the device's fixed latency rather
+				// than what is pending. Correcting long term drift between the
+				// sender clock and the device clock would need resampling, which
+				// this worker does not do.
+				//
+				// The output device can also disappear mid-stream, and an
+				// unguarded throw in this handler would take the worker down.
 				try {
 					rtAudio.write(outBuf);
 				} catch (error) {

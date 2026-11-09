@@ -124,7 +124,7 @@ const setNetworkInterface = function (address) {
 			cb("Could not bind to multicast Interface!");
 		}
 
-		sendUpdate();
+		sendUpdate({ immediate: true });
 	}
 };
 
@@ -157,7 +157,7 @@ const addStream = function (rawSDP, announce) {
 		announceStream(rawSDP, sessions[sdp.id].origin.address, sdp.header, false);
 	}
 
-	sendUpdate();
+	sendUpdate({ immediate: true });
 };
 
 const deleteStream = function (id) {
@@ -171,14 +171,21 @@ const deleteStream = function (id) {
 	}
 
 	delete sessions[id];
-	sendUpdate();
+	sendUpdate({ immediate: true });
 };
 
 const setDeleteTimeout = function (timeout) {
 	deleteTimeout = timeout * 1000;
 };
 
-const sendUpdate = function () {
+// A busy network announces constantly, and every announcement used to push the
+// complete session list over IPC. Updates are coalesced into one message per
+// window instead; a device appearing a quarter second later is imperceptible.
+const UPDATE_COALESCE_MS = 250;
+let updateTimer = null;
+
+const flushUpdate = function () {
+	updateTimer = null;
 	let keys = Object.keys(sessions);
 
 	for (let i = 0; i < keys.length; i++) {
@@ -186,7 +193,6 @@ const sendUpdate = function () {
 			Date.now() - sessions[keys[i]].lastSeen > deleteTimeout &&
 			!sessions[keys[i]].manual
 		) {
-			console.log("deleting");
 			delete sessions[keys[i]];
 		}
 	}
@@ -196,6 +202,19 @@ const sendUpdate = function () {
 			return sessions[key];
 		}),
 	);
+};
+
+const sendUpdate = function ({ immediate = false } = {}) {
+	if (immediate) {
+		if (updateTimer) {
+			clearTimeout(updateTimer);
+			updateTimer = null;
+		}
+		flushUpdate();
+		return;
+	}
+	if (updateTimer) return;
+	updateTimer = setTimeout(flushUpdate, UPDATE_COALESCE_MS);
 };
 
 setInterval(function () {
@@ -239,7 +258,7 @@ process.on("message", (message) => {
 			setNetworkInterface(message.data);
 			break;
 		case "update":
-			sendUpdate();
+			sendUpdate({ immediate: true });
 			break;
 	}
 });

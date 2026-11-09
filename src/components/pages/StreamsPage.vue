@@ -176,7 +176,7 @@
 
 <script>
 import {
-	searchStreams,
+	filteredStreams,
 	streams,
 	streamCount,
 	persistentData,
@@ -267,7 +267,7 @@ export default {
 		/* ---------- COMBINED STREAMS WITH FAVORITE ORDER ---------- */
 		const sortedStreams = computed(() => {
 			// Combine favorites and searchStreams
-			const combined = [...favorites.value, ...searchStreams()];
+			const combined = [...favorites.value, ...filteredStreams.value];
 
 			// Remove duplicates by stream.id, keeping the first occurrence (favorites first)
 			const seen = new Set();
@@ -306,7 +306,7 @@ export default {
 			setSort,
 			sortKey,
 			sortOrder,
-			searchStreams,
+			filteredStreams,
 			persistentData,
 			streams,
 			streamCount,

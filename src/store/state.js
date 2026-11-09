@@ -11,7 +11,6 @@ export const audioInterfaces = ref([]);
 export const selectedStream = ref(null);
 export const selectedChannel = ref({});
 export const streamIndex = ref({});
-export const visibleStreams = ref(0);
 export const playing = ref("");
 export const currentStream = ref("");
 export const rawSDP = ref({ sdp: "", announce: false });

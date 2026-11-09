@@ -3,11 +3,11 @@ const {
 	app,
 	BrowserWindow,
 	ipcMain,
+	powerMonitor,
 	screen,
 	session,
 } = require("electron/main");
 const path = require("node:path");
-const crypto = require("crypto");
 const { fork } = require("child_process");
 
 // Import refactored modules - calling paths ensures app.setPath is done early
@@ -43,7 +43,6 @@ const {
 let mainWindow;
 let sdpProcess = null;
 let audioProcess = null;
-let streamsHash = null;
 let isSDPInitialized = false;
 let systemUpdateInterval;
 let isQuitting = false;
@@ -278,14 +277,11 @@ function onSdpMessage(data) {
 	if (handleWorkerMessage("sdp", data)) return;
 	if (!Array.isArray(data)) return;
 
+	// This used to hash the raw SDP of every manual stream on each update and
+	// then save persistentData, which never contained those streams in the
+	// first place. Manual streams are persisted explicitly instead, by the
+	// handler that adds and removes them.
 	sendMessage("streams", data);
-	// Streams hash logic for persistence update
-	const combinedRaw = data.map((s) => (s.manual ? s.raw : "")).join("");
-	const newHash = crypto.createHash("sha256").update(combinedRaw).digest("hex");
-	if (newHash !== streamsHash) {
-		streamsHash = newHash;
-		require("./backend/persistence/persistence").scheduleSavePersistentData();
-	}
 }
 
 function startSdpWorker() {
@@ -335,16 +331,24 @@ async function lazyInit() {
 	// 4. Restore saved audio interface
 	restoreAudioInterface();
 
-	// 5. Start system update loop (reduced frequency)
-	systemUpdateInterval = setInterval(updateSystem, 2000);
+	// 5. Start system update loop
+	systemUpdateInterval = setInterval(updateSystem, SYSTEM_POLL_MS);
+
+	// Devices and interfaces also change on events, which is cheaper and far
+	// more responsive than shortening the poll interval.
+	powerMonitor.on("resume", () => updateSystem({ force: true }));
+	app.on("browser-window-focus", () => updateSystem({ force: true }));
 }
 
 // -----------------------------------------------------
 // System update loop
 // -----------------------------------------------------
-function updateSystem() {
+const SYSTEM_POLL_MS = 5000;
+let lastInterfaceSignature = "";
+
+function updateSystem({ force = false } = {}) {
 	const { interfaces: networkInterfaces } = updateNetworkInterfaces();
-	refreshCurrentAudioInterface();
+	refreshCurrentAudioInterface({ force });
 	const currentNetworkInterface = getCurrentNetworkInterface();
 	const persistentData = getPersistentData();
 
@@ -357,7 +361,14 @@ function updateSystem() {
 			data: persistentData.settings.sdpDeleteTimeout,
 		});
 	}
-	sendMessage("interfaces", networkInterfaces);
+
+	// Only push when the list actually changed; this used to fire on every
+	// tick and reassign the array in the renderer each time.
+	const signature = JSON.stringify(networkInterfaces);
+	if (force || signature !== lastInterfaceSignature) {
+		lastInterfaceSignature = signature;
+		sendMessage("interfaces", networkInterfaces);
+	}
 }
 
 // -----------------------------------------------------

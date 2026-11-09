@@ -32,6 +32,34 @@ export const setResumePlaybackHandler = (handler) => {
 	resumePlayback = handler;
 };
 
+// Discovery sends the full session list. Replacing the array wholesale threw
+// away every object identity, which is why selectedStream could end up
+// pointing at a stale copy of the stream the detail page was showing.
+// Updating in place keeps those references live.
+const knownStreams = new Map();
+
+const mergeStreams = (incoming) => {
+	const merged = [];
+	const seen = new Set();
+
+	for (const stream of incoming) {
+		seen.add(stream.id);
+		const existing = knownStreams.get(stream.id);
+		if (existing) {
+			Object.assign(existing, stream);
+			merged.push(existing);
+		} else {
+			knownStreams.set(stream.id, stream);
+			merged.push(stream);
+		}
+	}
+
+	for (const id of [...knownStreams.keys()]) {
+		if (!seen.has(id)) knownStreams.delete(id);
+	}
+	return merged;
+};
+
 export const initIpcReceiver = () => {
 	if (!window.electronAPI) {
 		console.warn("Running outside Electron, IPC receiver skipped.");
@@ -41,8 +69,8 @@ export const initIpcReceiver = () => {
 	window.electronAPI.recvMessage((message) => {
 		switch (message.type) {
 			case "streams":
-				streams.value = message.data;
-				streamCount.value = message.data.length;
+				streams.value = mergeStreams(message.data);
+				streamCount.value = streams.value.length;
 				break;
 			case "interfaces":
 				networkInterfaces.value = message.data;

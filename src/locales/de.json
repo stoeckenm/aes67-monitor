@@ -1,0 +1,171 @@
+{
+	"app": {
+		"name": "Stream Monitor"
+	},
+	"operator": {
+		"title": "Kanäle",
+		"empty": "Es sind noch keine Kanäle eingerichtet.",
+		"emptyHint": "Bitte wenden Sie sich an die Technik.",
+		"waiting": "Kanäle werden gesucht …",
+		"offline": "Zurzeit nicht im Netz",
+		"listen": "Abhören",
+		"stop": "Stopp",
+		"playing": "Läuft",
+		"unsupportedFormat": "Format wird vom Ausgabegerät nicht unterstützt",
+		"volume": "Lautstärke"
+	},
+	"nav": {
+		"favorites": "Kanäle",
+		"streams": "Streams",
+		"devices": "Geräte",
+		"settings": "Einstellungen",
+		"unlock": "Admin-Modus",
+		"lock": "Admin beenden",
+		"password": "Passwort",
+		"passwordPlaceholder": "Passwort eingeben",
+		"passwordWrong": "Passwort falsch",
+		"submit": "Entsperren"
+	},
+	"streams": {
+		"title": "Streams",
+		"empty": "Keine Streams gefunden.",
+		"emptyHint": "Es kann einige Sekunden dauern, bis Streams erscheinen.",
+		"search": "Suchen",
+		"addManual": "Stream über SDP hinzufügen",
+		"showUnsupported": "Nicht abspielbare Streams anzeigen",
+		"columns": {
+			"displayName": "Anzeigename",
+			"name": "Stream-Name",
+			"tags": "Merkmale",
+			"info": "Beschreibung",
+			"address": "Geräteadresse",
+			"format": "Format",
+			"multicast": "Multicast",
+			"channel": "Kanal"
+		},
+		"tags": {
+			"dante": "Dante",
+			"redundant": "2022-7",
+			"manual": "Manuell",
+			"sap": "SAP"
+		},
+		"notAvailable": "Nicht verfügbar",
+		"notSupported": "Nicht abspielbar",
+		"favorite": "Als Kanal übernehmen",
+		"unfavorite": "Aus den Kanälen entfernen",
+		"details": "Details",
+		"channelMono": "{channel} Mono",
+		"channelStereo": "{first} + {second} Stereo"
+	},
+	"stream": {
+		"displayName": "Anzeigename",
+		"displayNamePlaceholder": "Name für Bediener",
+		"displayNameHint": "Dieser Name erscheint in der Bedienansicht.",
+		"id": "Stream-Kennung",
+		"address": "Adresse",
+		"clockSource": "Taktquelle",
+		"tags": "Merkmale",
+		"group": "Stream-Gruppe",
+		"media": "Medienstrom",
+		"protocol": "Protokoll",
+		"sourceFilter": "Quellfilter",
+		"format": "Format",
+		"codec": "Codec",
+		"packetTime": "Paketzeit",
+		"description": "Beschreibung",
+		"channels": "{count} Kanäle @ {rate} Hz",
+		"pcm24": "24 Bit PCM",
+		"pcm16": "16 Bit PCM",
+		"rawSdp": "SDP-Ankündigung",
+		"copySdp": "SDP kopieren",
+		"copied": "Kopiert",
+		"delete": "Stream entfernen",
+		"effectiveBuffer": "Wirksame Pufferung: {count} Pakete"
+	},
+	"sdp": {
+		"title": "Stream hinzufügen",
+		"hint": "SDP-Daten des Streams hier einfügen.",
+		"announce": "Stream im Netz per SAP ankündigen",
+		"save": "Hinzufügen",
+		"invalid": "Die SDP-Daten konnten nicht gelesen werden."
+	},
+	"devices": {
+		"title": "Geräte",
+		"empty": "Keine Geräte gefunden.",
+		"name": "Name",
+		"address": "Adresse",
+		"streamCount": "Streams",
+		"description": "Beschreibung",
+		"rename": "Umbenennen",
+		"save": "Speichern",
+		"filter": "Streams anzeigen"
+	},
+	"settings": {
+		"title": "Einstellungen",
+		"tabs": {
+			"audio": "Audio",
+			"network": "Netzwerk",
+			"access": "Zugang"
+		},
+		"audio": {
+			"output": "Wiedergabegerät",
+			"followSystem": "Immer das Standardgerät von Windows verwenden",
+			"followSystemHint": "Der Monitor folgt dann automatisch der Systemausgabe.",
+			"noDevice": "Kein Wiedergabegerät gefunden.",
+			"current": "Aktiv",
+			"systemDefault": "Windows-Standard",
+			"stability": "Verhalten bei Netzwerkstörungen",
+			"stabilityHint": "Mehr Pufferung übersteht Störungen besser, verzögert die Wiedergabe aber stärker.",
+			"levels": {
+				"off": "Keine Pufferung",
+				"low": "Kürzeste Verzögerung",
+				"standard": "Standard (empfohlen)",
+				"stable": "Maximale Stabilität",
+				"custom": "Eigener Wert"
+			},
+			"expert": "Expertenwert",
+			"expertHint": "Pufferung in Paketen. Bei sehr kurzen Paketzeiten hebt der Monitor diesen Wert automatisch an.",
+			"packets": "Pakete"
+		},
+		"network": {
+			"interface": "Netzwerkkarte für AES67",
+			"interfaceHint": "Über diese Karte werden Streams gesucht und empfangen.",
+			"noInterface": "Keine Netzwerkkarte gefunden.",
+			"timeout": "Streams ausblenden, die nicht mehr angekündigt werden",
+			"timeoutHint": "Geräte kündigen sich regelmäßig an. Bleibt eine Ankündigung aus, gilt der Stream als verschwunden.",
+			"timeouts": {
+				"short": "Nach 1 Minute",
+				"default": "Nach 5 Minuten",
+				"never": "Nie ausblenden",
+				"custom": "Eigener Wert"
+			},
+			"seconds": "Sekunden"
+		},
+		"access": {
+			"password": "Admin-Passwort",
+			"placeholder": "Neues Passwort",
+			"set": "Passwort setzen",
+			"remove": "Passwort entfernen",
+			"isSet": "Ein Passwort ist gesetzt. Der Admin-Modus fragt danach.",
+			"isNotSet": "Kein Passwort gesetzt. Der Admin-Modus öffnet ohne Abfrage.",
+			"saved": "Passwort gespeichert.",
+			"removed": "Passwort entfernt.",
+			"disclaimer": "Diese Sperre schützt vor versehentlicher Bedienung. Sie ist kein Zugriffsschutz: Wer die Konfigurationsdatei bearbeiten kann, kann sie umgehen."
+		}
+	},
+	"errors": {
+		"title": "Hinweis",
+		"dismiss": "Ausblenden",
+		"workerRestarted": "Ein interner Dienst wurde neu gestartet. Die Wiedergabe kann kurz ausgesetzt haben.",
+		"workerFailure": "Störung in einem internen Dienst.",
+		"configUnwritable": "Die Einstellungen konnten nicht gespeichert werden.",
+		"noNetworkInterface": "Keine Netzwerkkarte verfügbar. Es können keine Streams empfangen werden.",
+		"noAudioDevice": "Kein Wiedergabegerät verfügbar."
+	},
+	"common": {
+		"back": "Zurück",
+		"close": "Schließen",
+		"yes": "Ja",
+		"no": "Nein"
+	}
+}

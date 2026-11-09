@@ -218,13 +218,30 @@ function applyContentSecurityPolicy() {
 	// Only in the packaged app: the dev server needs eval for its sourcemaps
 	// and injects styles inline.
 	if (!app.isPackaged) return;
+
+	// The packaged renderer is loaded over file://, where Chromium does not
+	// treat 'self' as matching the page's own scheme, so the file: scheme is
+	// listed explicitly. Without it the bundle itself would be blocked and the
+	// window would come up blank. What this still prevents is the part that
+	// matters here: remote script sources and inline script, i.e. the vector
+	// for markup arriving in a stream name from a SAP announcement.
+	const policy = [
+		"default-src 'self' file:",
+		"script-src 'self' file:",
+		"style-src 'self' file: 'unsafe-inline'",
+		"img-src 'self' file: data:",
+		"font-src 'self' file: data:",
+		"connect-src 'self'",
+		"object-src 'none'",
+		"base-uri 'none'",
+		"frame-ancestors 'none'",
+	].join("; ");
+
 	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 		callback({
 			responseHeaders: {
 				...details.responseHeaders,
-				"Content-Security-Policy": [
-					"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
-				],
+				"Content-Security-Policy": [policy],
 			},
 		});
 	});

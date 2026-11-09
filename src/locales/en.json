@@ -1,0 +1,171 @@
+{
+	"app": {
+		"name": "Stream Monitor"
+	},
+	"operator": {
+		"title": "Channels",
+		"empty": "No channels have been set up yet.",
+		"emptyHint": "Please ask your technical staff.",
+		"waiting": "Looking for channels …",
+		"offline": "Currently not on the network",
+		"listen": "Listen",
+		"stop": "Stop",
+		"playing": "Playing",
+		"unsupportedFormat": "Format not supported by the output device",
+		"volume": "Volume"
+	},
+	"nav": {
+		"favorites": "Channels",
+		"streams": "Streams",
+		"devices": "Devices",
+		"settings": "Settings",
+		"unlock": "Admin mode",
+		"lock": "Exit admin",
+		"password": "Password",
+		"passwordPlaceholder": "Enter password",
+		"passwordWrong": "Wrong password",
+		"submit": "Unlock"
+	},
+	"streams": {
+		"title": "Streams",
+		"empty": "No streams found.",
+		"emptyHint": "It can take a few seconds for streams to appear.",
+		"search": "Search",
+		"addManual": "Add a stream via SDP",
+		"showUnsupported": "Show streams that cannot be played",
+		"columns": {
+			"displayName": "Display name",
+			"name": "Stream name",
+			"tags": "Tags",
+			"info": "Description",
+			"address": "Device address",
+			"format": "Format",
+			"multicast": "Multicast",
+			"channel": "Channel"
+		},
+		"tags": {
+			"dante": "Dante",
+			"redundant": "2022-7",
+			"manual": "Manual",
+			"sap": "SAP"
+		},
+		"notAvailable": "Not available",
+		"notSupported": "Cannot be played",
+		"favorite": "Add to channels",
+		"unfavorite": "Remove from channels",
+		"details": "Details",
+		"channelMono": "{channel} mono",
+		"channelStereo": "{first} + {second} stereo"
+	},
+	"stream": {
+		"displayName": "Display name",
+		"displayNamePlaceholder": "Name shown to operators",
+		"displayNameHint": "This name appears in the operator view.",
+		"id": "Stream id",
+		"address": "Address",
+		"clockSource": "Clock source",
+		"tags": "Tags",
+		"group": "Stream group",
+		"media": "Media stream",
+		"protocol": "Protocol",
+		"sourceFilter": "Source filter",
+		"format": "Format",
+		"codec": "Codec",
+		"packetTime": "Packet time",
+		"description": "Description",
+		"channels": "{count} channels @ {rate} Hz",
+		"pcm24": "24 bit PCM",
+		"pcm16": "16 bit PCM",
+		"rawSdp": "SDP announcement",
+		"copySdp": "Copy SDP",
+		"copied": "Copied",
+		"delete": "Remove stream",
+		"effectiveBuffer": "Buffer in effect: {count} packets"
+	},
+	"sdp": {
+		"title": "Add stream",
+		"hint": "Paste the SDP data of the stream here.",
+		"announce": "Announce this stream on the network via SAP",
+		"save": "Add",
+		"invalid": "The SDP data could not be read."
+	},
+	"devices": {
+		"title": "Devices",
+		"empty": "No devices found.",
+		"name": "Name",
+		"address": "Address",
+		"streamCount": "Streams",
+		"description": "Description",
+		"rename": "Rename",
+		"save": "Save",
+		"filter": "Show streams"
+	},
+	"settings": {
+		"title": "Settings",
+		"tabs": {
+			"audio": "Audio",
+			"network": "Network",
+			"access": "Access"
+		},
+		"audio": {
+			"output": "Output device",
+			"followSystem": "Always use the Windows default device",
+			"followSystemHint": "The monitor then follows the system output automatically.",
+			"noDevice": "No output device found.",
+			"current": "Active",
+			"systemDefault": "Windows default",
+			"stability": "Behaviour during network trouble",
+			"stabilityHint": "More buffering survives disruptions better but delays playback.",
+			"levels": {
+				"off": "No buffering",
+				"low": "Shortest delay",
+				"standard": "Standard (recommended)",
+				"stable": "Maximum stability",
+				"custom": "Custom value"
+			},
+			"expert": "Expert value",
+			"expertHint": "Buffer in packets. The monitor raises this automatically for very short packet times.",
+			"packets": "packets"
+		},
+		"network": {
+			"interface": "Network adapter for AES67",
+			"interfaceHint": "Streams are discovered and received over this adapter.",
+			"noInterface": "No network adapter found.",
+			"timeout": "Hide streams that are no longer announced",
+			"timeoutHint": "Devices announce themselves regularly. If an announcement stops, the stream counts as gone.",
+			"timeouts": {
+				"short": "After 1 minute",
+				"default": "After 5 minutes",
+				"never": "Never hide",
+				"custom": "Custom value"
+			},
+			"seconds": "seconds"
+		},
+		"access": {
+			"password": "Admin password",
+			"placeholder": "New password",
+			"set": "Set password",
+			"remove": "Remove password",
+			"isSet": "A password is set. Admin mode asks for it.",
+			"isNotSet": "No password set. Admin mode opens without asking.",
+			"saved": "Password saved.",
+			"removed": "Password removed.",
+			"disclaimer": "This lock guards against accidental operation. It is not access control: anyone who can edit the config file can bypass it."
+		}
+	},
+	"errors": {
+		"title": "Notice",
+		"dismiss": "Dismiss",
+		"workerRestarted": "An internal service was restarted. Playback may have dropped out briefly.",
+		"workerFailure": "An internal service reported a problem.",
+		"configUnwritable": "The settings could not be saved.",
+		"noNetworkInterface": "No network adapter available. Streams cannot be received.",
+		"noAudioDevice": "No output device available."
+	},
+	"common": {
+		"back": "Back",
+		"close": "Close",
+		"yes": "Yes",
+		"no": "No"
+	}
+}

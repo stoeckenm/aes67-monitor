@@ -1,4 +1,4 @@
-// renderer/store/settings.js
+// config/presets.js
 //
 // Maps the technical settings onto named choices. The stored shape is
 // unchanged, so an admin can still set an exact value.

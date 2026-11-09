@@ -20,17 +20,24 @@ AES67 Stream Monitor ist eine plattformübergreifende Audio-over-IP-Monitoring-A
 
 ---
 
-## ⚙️ Architektur & Entwicklungshinweise (Neu)
+## ⚙️ Architektur & Entwicklungshinweise
 
-Die Anwendung basiert auf Electron, wobei die kritischen Prozesse für AES67-Netzwerkerkennung (`sdp.js`) und Audio-Wiedergabe (`audio.js`) über **Node.js Child Processes** (`child_process.fork`) isoliert wurden, um die Stabilität des Hauptprozesses zu gewährleisten.
+Die Anwendung basiert auf Electron und Vue 3 (Vite, Pinia, vue-i18n). Die kritischen Prozesse für AES67-Netzwerkerkennung (`src/lib/sdp.js`) und Audio-Wiedergabe (`src/lib/audio.js`) laufen als eigene Node-Prozesse (`child_process.fork`) und werden vom Hauptprozess überwacht und bei einem Absturz automatisch neu gestartet.
 
-Die Backend-Logik ist in folgende Module unterteilt:
+Die Oberfläche ist bewusst zweigeteilt:
 
-- **`system/`**: Enthält die Kernlogik für die Interaktion mit dem Betriebssystem, einschließlich Netzwerkschnittstellen-Management und `audify`/`RtAudio`-Initialisierung.
-- **`persistence/`**: Verwaltet das asynchrone, atomare Speichern und Laden der Konfigurationsdaten (`persistentData` und `userData`).
-- **`ipc/`**: Definiert die Kommunikation (Inter-Process Communication) zwischen dem Electron Renderer Process (Frontend) und dem Electron Main Process.
+- **Bedienansicht:** ausschließlich große Kanal-Kacheln mit Abhören/Stopp. Keine technischen Details.
+- **Adminansicht:** vollständige Stream-, Geräte- und Einstellungsverwaltung, über das Schloss-Symbol und optional ein Passwort erreichbar.
 
----
+Die Backend-Logik ist unterteilt in:
+
+- **`backend/system/`**: Netzwerkschnittstellen, `audify`/RtAudio-Geräteverwaltung und die Passwortprüfung.
+- **`backend/persistence/`**: asynchrones, atomares Speichern und Laden der Konfiguration, inklusive Migration älterer Formate.
+- **`backend/ipc/`**: Kommunikation zwischen Renderer und Hauptprozess.
+
+Vite bündelt ausschließlich den Renderer. `main.js`, `preload.js`, `backend/` und `src/lib/` bleiben CommonJS und werden von Electron direkt geladen.
+
+Die maschinenweite Konfiguration liegt unter Windows in `%ProgramData%\StreamMonitor`, die benutzerspezifische unter `%APPDATA%\StreamMonitor`.
 
 ## 📸 Screenshots
 
@@ -70,31 +77,26 @@ Dies erstellt die Binaries für die aktuelle Plattform (MacOS, Windows, Linux).
 
 ## Development
 
-### Compiles and hot-reloads frontend for development
+### Frontend mit Hot Reload starten
 
 ```
-
-npm run serve
-
+npm run dev
 ```
 
-### Start electron for development
+### Electron starten
 
-You will have to run `npm run serve` too for the frontend.
+Dafür muss `npm run dev` ebenfalls laufen.
 
 ```
-
 npm start
-
 ```
 
-### Lint and format files
+### Tests, Lint und Formatierung
 
 ```
-
+npm test
 npm run lint
 npm run format
-
 ```
 
 ## Testing

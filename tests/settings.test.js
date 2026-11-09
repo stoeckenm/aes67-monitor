@@ -7,7 +7,7 @@ import {
 	effectiveBufferSize,
 	timeoutKeyOf,
 	applyTimeoutKey,
-} from "../src/store/settings.js";
+} from "../src/config/presets.js";
 
 describe("buffer levels", () => {
 	it("recognizes the named levels and the previous default", () => {

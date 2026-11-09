@@ -1,65 +1,28 @@
 <template>
-	<div
-		v-cloak
-		id="app-wrapper"
-		:class="{ sidebarCollapse: userData.settings.sidebarCollapsed }"
-	>
-		<HeaderBar />
-		<SideBar />
-		<component :is="currentComponent" />
-	</div>
+	<!-- Two distinct shells rather than one shell with pieces hidden: the
+	operator is meant to see a different application, not a stripped down
+	admin tool. -->
+	<AdminLayout v-if="session.adminMode" />
+	<OperatorLayout v-else />
 </template>
 
-<script>
-import { computed } from "vue";
-import { userData, page } from "./app.js";
+<script setup>
+import { onMounted } from "vue";
+import AdminLayout from "./layouts/AdminLayout.vue";
+import OperatorLayout from "./layouts/OperatorLayout.vue";
+import { useSessionStore } from "./stores/session";
+import { useConfigStore } from "./stores/config";
+import { usePlaybackStore } from "./stores/playback";
+import { startReceiver } from "./ipc/receiver";
 
-import HeaderBar from "./components/HeaderBar.vue";
-import SideBar from "./components/SideBar.vue";
-import Favorites from "./components/pages/FavoritesPage.vue";
-import Streams from "./components/pages/StreamsPage.vue";
-import Stream from "./components/pages/StreamPage.vue";
-import Devices from "./components/pages/DevicesPage.vue";
-import Interfaces from "./components/pages/InterfacesPage.vue";
-import Settings from "./components/pages/SettingsPage.vue";
-import Sdp from "./components/pages/SdpPage.vue";
+const session = useSessionStore();
+const config = useConfigStore();
+const playback = usePlaybackStore();
 
-export default {
-	name: "App",
-	components: {
-		HeaderBar,
-		SideBar,
-	},
-	setup() {
-		return {
-			currentComponent,
-			userData,
-		};
-	},
-};
-
-const currentComponent = computed(() => {
-	switch (page.value) {
-		case "favorites":
-			return Favorites;
-		case "streams":
-			return Streams;
-		case "devices":
-			return Devices;
-		case "interfaces":
-			return Interfaces;
-		case "settings":
-			return Settings;
-		case "stream":
-			return Stream;
-		case "sdp":
-			return Sdp;
-		default:
-			return Favorites;
-	}
+onMounted(async () => {
+	await config.load();
+	config.startWatchers();
+	playback.watchDiscovery();
+	startReceiver();
 });
 </script>
-
-<style>
-@import "./assets/style.css";
-</style>

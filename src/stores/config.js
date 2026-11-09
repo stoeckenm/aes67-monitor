@@ -39,33 +39,37 @@ export const useConfigStore = defineStore("config", () => {
 	const user = ref(userDefaults());
 	const loaded = ref(false);
 
-	let applyingFromMain = false;
 	let persistTimer = null;
 	let userTimer = null;
+	// What main last sent us, or what we last sent main. Comparing against this
+	// is what stops the save ping-pong.
+	//
+	// A boolean "currently applying from main" flag does not work here, and the
+	// previous implementation had exactly that bug: Vue flushes watchers
+	// asynchronously, so the flag was already cleared again by the time the
+	// callback ran and every push from main triggered a save straight back.
+	let lastSyncedPersistent = "";
+	let lastSyncedUser = "";
 
 	const settings = computed(() => persistent.value.settings);
 	const hasPassword = computed(() => !!persistent.value.hasPassword);
 
 	const savePersistent = () => {
-		bridge.send({
-			type: "savePersistent",
-			key: "persistentData",
-			data: JSON.stringify(persistent.value),
-		});
+		const data = JSON.stringify(persistent.value);
+		if (data === lastSyncedPersistent) return;
+		lastSyncedPersistent = data;
+		bridge.send({ type: "savePersistent", key: "persistentData", data });
 	};
 
 	const saveUser = () => {
-		bridge.send({
-			type: "saveUser",
-			key: "userData",
-			data: JSON.stringify(user.value),
-		});
+		const data = JSON.stringify(user.value);
+		if (data === lastSyncedUser) return;
+		lastSyncedUser = data;
+		bridge.send({ type: "saveUser", key: "userData", data });
 	};
 
-	// Applied from main: replace without triggering a save back
 	const applyFromMain = (incoming) => {
 		if (!incoming) return;
-		applyingFromMain = true;
 		persistent.value = {
 			...persistentDefaults(),
 			...incoming,
@@ -75,14 +79,13 @@ export const useConfigStore = defineStore("config", () => {
 			},
 			network: { ...persistentDefaults().network, ...(incoming.network || {}) },
 		};
-		applyingFromMain = false;
+		lastSyncedPersistent = JSON.stringify(persistent.value);
 	};
 
 	const load = async () => {
 		const config = await bridge.getSharedConfig();
 		if (config) {
 			applyFromMain(config.persistentData);
-			applyingFromMain = true;
 			user.value = {
 				...userDefaults(),
 				...config.userData,
@@ -91,7 +94,7 @@ export const useConfigStore = defineStore("config", () => {
 					...(config.userData?.settings || {}),
 				},
 			};
-			applyingFromMain = false;
+			lastSyncedUser = JSON.stringify(user.value);
 		}
 		loaded.value = true;
 	};
@@ -100,7 +103,6 @@ export const useConfigStore = defineStore("config", () => {
 		watch(
 			persistent,
 			() => {
-				if (applyingFromMain) return;
 				clearTimeout(persistTimer);
 				persistTimer = setTimeout(savePersistent, 300);
 			},
@@ -109,7 +111,6 @@ export const useConfigStore = defineStore("config", () => {
 		watch(
 			user,
 			() => {
-				if (applyingFromMain) return;
 				clearTimeout(userTimer);
 				userTimer = setTimeout(saveUser, 300);
 			},

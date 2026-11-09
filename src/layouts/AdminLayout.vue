@@ -148,12 +148,12 @@ const title = computed(() => {
 	if (session.page === "stream") {
 		// Interpolated by Vue, never v-html: this is a name straight off the
 		// network.
-		return discovery.displayName(discovery.streamById(selectedId.value));
+		return discovery.displayName(
+			discovery.streamById(session.selectedStreamId),
+		);
 	}
 	return t(titles[session.page] || "nav.favorites");
 });
-
-const selectedId = computed(() => session.selectedStreamId);
 </script>
 
 <style scoped>

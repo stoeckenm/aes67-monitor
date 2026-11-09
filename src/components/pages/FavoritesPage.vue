@@ -15,7 +15,7 @@
 		v-if="sortedStreamsLocal?.length > 0"
 		v-model="sortedStreamsLocal"
 		item-key="id"
-		:disabled="!persistentData.adminMode"
+		:disabled="!adminMode"
 		class="row g-3"
 		@end="saveOrder"
 	>
@@ -23,14 +23,14 @@
 			<div class="col-12 col-sm-6 col-md-4 col-lg-3">
 				<div
 					class="card shadow-sm h-100"
-					:class="{ 'draggable-active': persistentData.adminMode }"
+					:class="{ 'draggable-active': adminMode }"
 				>
 					<div
 						class="card-body d-flex justify-content-between align-items-start"
 					>
 						<div>
 							<h4 class="card-title text-truncate mb-1">
-								{{ stream.friendlyName || stream.name || "-" }}
+								{{ getDisplayName(stream) }}
 							</h4>
 						</div>
 
@@ -54,7 +54,7 @@
 
 							<!-- Remove Button (Admin only) -->
 							<button
-								v-if="persistentData.adminMode"
+								v-if="adminMode"
 								class="btn btn-sm btn-outline-danger"
 								@click="removeFavorite(stream)"
 							>
@@ -78,7 +78,9 @@ import {
 	persistentData,
 	userData,
 	getCurrentSupportedSampleRates,
-	saveUserConfig,
+	savePersistentConfig,
+	getDisplayName,
+	adminMode,
 	stopStream,
 } from "../../app.js";
 import { ref, watch } from "vue";
@@ -120,7 +122,7 @@ export default {
 
 			// Persist to main favorites array
 			persistentData.value.favorites = [...sortedStreamsLocal.value];
-			saveUserConfig();
+			savePersistentConfig();
 		}
 
 		/* ---------- FAVORITE MANAGEMENT ---------- */
@@ -141,7 +143,7 @@ export default {
 				(a, b) => a.order - b.order
 			);
 
-			saveUserConfig();
+			savePersistentConfig();
 		}
 
 		function removeFavorite(stream) {
@@ -157,7 +159,7 @@ export default {
 				persistentData.value.favorites.forEach((f, idx) => (f.order = idx));
 				sortedStreamsLocal.value = [...persistentData.value.favorites];
 
-				saveUserConfig();
+				savePersistentConfig();
 			}
 		}
 
@@ -178,6 +180,8 @@ export default {
 			visibleStreams,
 			userData,
 			persistentData,
+			adminMode,
+			getDisplayName,
 			getCurrentSupportedSampleRates,
 		};
 	},

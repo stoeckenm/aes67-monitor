@@ -56,7 +56,7 @@
 		<tbody>
 			<template v-for="stream in sortedStreams" :key="stream.id">
 				<tr>
-					<td>{{ stream.friendlyName || "-" }}</td>
+					<td>{{ getStreamName(stream) || "-" }}</td>
 					<td>{{ stream.name }}</td>
 					<td>
 						<span class="badge bg-primary me-1" v-if="stream.dante">Dante</span>
@@ -81,7 +81,7 @@
 						</span>
 					</td>
 					<td>
-						<span v-if="stream.media.length > 1 && stream.isSupported">
+						<span v-if="stream.media?.length > 1 && stream.isSupported">
 							<select
 								class="form-select form-select-sm"
 								v-model="streamIndex[stream.id]"
@@ -92,12 +92,16 @@
 									:key="index"
 									:value="index"
 								>
-									{{ media.connection.ip.split("/")[0] }}:{{ media.port }}
+									{{ media.connection?.ip?.split("/")[0] || stream.mcast }}:{{
+										media.port
+									}}
 								</option>
 							</select>
 						</span>
 						<span v-else class="copy">
-							{{ stream.mcast }}:{{ stream.media[0]?.port || "Not Available" }}
+							{{ stream.mcast }}:{{
+								stream.media?.[0]?.port || "Not Available"
+							}}
 						</span>
 					</td>
 
@@ -184,7 +188,8 @@ import {
 	playing,
 	streamIndex,
 	getCurrentSupportedSampleRates,
-	saveUserConfig,
+	savePersistentConfig,
+	getStreamName,
 } from "../../app.js";
 import { ref, computed } from "vue";
 
@@ -237,24 +242,22 @@ export default {
 		/* ---------- FAVORITES MANAGEMENT ---------- */
 		if (!persistentData.value.favorites) persistentData.value.favorites = [];
 
-		// Make a reactive copy of favorites
-		const favorites = ref([...persistentData.value.favorites]);
-
-		function storeFavorites() {
-			persistentData.value.favorites = [...favorites.value];
-			saveUserConfig();
-		}
+		// Derived from the store rather than copied into a local ref, which had
+		// no watcher and drifted apart from the favorites page.
+		const favorites = computed(() => persistentData.value.favorites || []);
 
 		function toggleFavorite(stream) {
-			const index = favorites.value.findIndex((s) => s.id === stream.id);
+			const list = persistentData.value.favorites;
+			const index = list.findIndex((s) => s.id === stream.id);
 			if (index === -1) {
-				// Add new favorite at the end using order field
-				stream.order = favorites.value.length;
-				favorites.value.push(stream);
+				// Copy rather than storing the live stream object, which would get
+				// an order property written onto it
+				list.push({ ...stream, order: list.length });
 			} else {
-				favorites.value.splice(index, 1);
+				list.splice(index, 1);
+				list.forEach((f, i) => (f.order = i));
 			}
-			storeFavorites();
+			savePersistentConfig();
 		}
 
 		function isFavorite(stream) {
@@ -316,6 +319,7 @@ export default {
 			streamIndex,
 			toggleFavorite,
 			isFavorite,
+			getStreamName,
 			getCurrentSupportedSampleRates,
 		};
 	},

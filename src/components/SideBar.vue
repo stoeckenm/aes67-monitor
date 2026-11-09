@@ -21,7 +21,7 @@
 			</li>
 
 			<!-- Other pages, visible only if adminMode or not on Favorites -->
-			<template v-if="page !== 'favorites' || persistentData.adminMode">
+			<template v-if="page !== 'favorites' || adminMode">
 				<li id="streams-li" :class="{ active: page === 'streams' }">
 					<a @click="viewPage('streams')">
 						<i class="bi bi-speaker"></i><span>Streams</span>
@@ -58,20 +58,15 @@
 		<div id="admin-toggle" class="mt-auto p-2 text-center">
 			<button
 				class="btn btn-sm"
-				:class="
-					persistentData.adminMode ? 'btn-danger' : 'btn-outline-secondary'
-				"
+				:class="adminMode ? 'btn-danger' : 'btn-outline-secondary'"
 				@click="toggleAdminMode"
 			>
-				<i
-					class="bi"
-					:class="persistentData.adminMode ? 'bi-lock-fill' : 'bi-unlock'"
-				></i>
-				{{ persistentData.adminMode ? "Exit Admin" : "" }}
+				<i class="bi" :class="adminMode ? 'bi-lock-fill' : 'bi-unlock'"></i>
+				{{ adminMode ? "Exit Admin" : "" }}
 			</button>
 
 			<!-- Password input form -->
-			<div v-if="showPasswordInput && !persistentData.adminMode" class="mt-2">
+			<div v-if="showPasswordInput && !adminMode" class="mt-2">
 				<input
 					type="password"
 					v-model="password"
@@ -94,6 +89,7 @@ import {
 	viewPage,
 	userData,
 	persistentData,
+	adminMode,
 	page,
 	setSidebarStatus,
 	searchDevices,
@@ -103,48 +99,22 @@ import {
 
 import { ref, computed } from "vue";
 
-// Utility: hash string to SHA-256 hex
-async function sha256(str) {
-	const encoder = new TextEncoder();
-	const data = encoder.encode(str);
-	const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export default {
 	name: "SideBar",
 	setup() {
 		// ---------- ADMIN MODE ----------
+		// The hash lives in the main process and is verified there, so the
+		// renderer only ever learns whether a password is configured.
 		const showPasswordInput = ref(false);
 		const password = ref("");
 		const passwordError = ref(false);
 
-		// Ensure adminMode field exists
-		if (persistentData.value.adminMode === undefined) {
-			persistentData.value.adminMode = false;
-		}
-
-		// Ensure passwordHash exists (may be null if not set)
-		if (!("passwordHash" in persistentData.value)) {
-			persistentData.value.passwordHash = null;
-		}
-
-		// Secure password check
 		async function checkPassword() {
-			// No password set → auto-unlock (failsafe)
-			if (!persistentData.value.passwordHash) {
-				persistentData.value.adminMode = true;
-				showPasswordInput.value = false;
-				password.value = "";
-				passwordError.value = false;
-				return;
-			}
-
-			const enteredHash = await sha256(password.value);
-
-			if (enteredHash === persistentData.value.passwordHash) {
-				persistentData.value.adminMode = true;
+			const result = await window.electronAPI.verifyAdminPassword(
+				password.value
+			);
+			if (result?.ok) {
+				adminMode.value = true;
 				password.value = "";
 				passwordError.value = false;
 				showPasswordInput.value = false;
@@ -155,37 +125,34 @@ export default {
 
 		function toggleAdminMode() {
 			// Turning ON admin mode
-			if (!persistentData.value.adminMode) {
-				// If no password set → unlock instantly
-				if (!persistentData.value.passwordHash) {
-					persistentData.value.adminMode = true;
+			if (!adminMode.value) {
+				// No password configured → unlock straight away
+				if (!persistentData.value.hasPassword) {
+					adminMode.value = true;
 					return;
 				}
-
-				// Otherwise show password field
 				showPasswordInput.value = true;
 				return;
 			}
 
 			// Turning OFF admin mode
-			persistentData.value.adminMode = false;
+			adminMode.value = false;
 			showPasswordInput.value = false;
+			password.value = "";
+			passwordError.value = false;
 			viewPage("favorites");
 		}
 
 		// ---------- FAVORITES ----------
-		if (!persistentData.value.favorites) persistentData.value.favorites = [];
-
-		const favoriteCount = computed(() => persistentData.value.favorites.length);
-
-		const favoriteIds = computed(
-			() => new Set(persistentData.value.favorites.map((s) => s.id))
+		const favoriteCount = computed(
+			() => persistentData.value.favorites?.length || 0
 		);
 
 		return {
 			viewPage,
 			userData,
 			persistentData,
+			adminMode,
 			page,
 			searchDevices,
 			visibleStreams,
@@ -197,7 +164,6 @@ export default {
 			checkPassword,
 			toggleAdminMode,
 			favoriteCount,
-			favoriteIds,
 		};
 	},
 };

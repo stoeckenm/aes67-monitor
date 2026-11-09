@@ -1,7 +1,7 @@
 <template>
 	<div
 		id="sidebar-top"
-		:class="{ sidebarCollapse: persistentData.settings.sidebarCollapsed }"
+		:class="{ sidebarCollapse: userData.settings.sidebarCollapsed }"
 	>
 		<button
 			class="btn btn-outline btn-secondary"
@@ -11,7 +11,9 @@
 		>
 			<i class="bi bi-caret-left"></i> {{ getPageTitle() }}
 		</button>
-		<h4 id="pageTitle" v-html="getTitle()"></h4>
+		<!-- Interpolated, never v-html: the title can be a stream name
+		straight out of a SAP announcement from the network. -->
+		<h4 id="pageTitle">{{ getTitle() }}</h4>
 
 		<input
 			type="text"
@@ -71,17 +73,26 @@ import {
 	getPageTitle,
 	search,
 	page,
-	persistentData,
+	userData,
 	saveSDP,
 	rawSDP,
 	selectedStream,
 	playing,
 	stopStream,
+	sendMessage,
 } from "../app.js";
 
 export default {
 	name: "HeaderBar",
 	setup() {
+		const deleteStream = (id) => {
+			if (id === playing.value) stopStream();
+			sendMessage({ type: "delete", data: id });
+			page.value = "streams";
+		};
+
+		const copyClip = (sdp) => navigator.clipboard.writeText(sdp);
+
 		return {
 			isBackBtnActive,
 			getTitle,
@@ -89,24 +100,14 @@ export default {
 			getPageTitle,
 			search,
 			page,
-			persistentData,
+			userData,
 			goBack,
 			saveSDP,
 			rawSDP,
 			selectedStream,
+			deleteStream,
+			copyClip,
 		};
-	},
-	methods: {
-		deleteStream(id) {
-			if (id === playing.value) {
-				stopStream();
-			}
-			window.electronAPI.sendMessage({ type: "delete", data: id });
-			page.value = "streams";
-		},
-		copyClip(sdp) {
-			navigator.clipboard.writeText(sdp);
-		},
 	},
 };
 </script>

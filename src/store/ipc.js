@@ -3,14 +3,11 @@ import {
 	playing,
 	persistentData,
 	streams,
-	favorites,
-	devices,
+	streamCount,
 	networkInterfaces,
 	audioInterfaces,
 	currentStream,
-	favoriteCount,
-	streamCount,
-	interfaceCount,
+	lastError,
 } from "./state";
 
 let applyingFromMain = false; // Prevents save ping-pong
@@ -28,6 +25,13 @@ export const sendMessage = (message) => {
 	}
 };
 
+// Set by app.js after the stores are wired, to avoid importing actions here
+// (that import cycle previously needed a CommonJS require()).
+let resumePlayback = null;
+export const setResumePlaybackHandler = (handler) => {
+	resumePlayback = handler;
+};
+
 export const initIpcReceiver = () => {
 	if (!window.electronAPI) {
 		console.warn("Running outside Electron, IPC receiver skipped.");
@@ -36,23 +40,15 @@ export const initIpcReceiver = () => {
 
 	window.electronAPI.recvMessage((message) => {
 		switch (message.type) {
-			case "favorites":
-				favorites.value = message.data;
-				favoriteCount.value = message.data.length;
-				break;
 			case "streams":
 				streams.value = message.data;
 				streamCount.value = message.data.length;
-				break;
-			case "devices":
-				devices.value = message.data;
 				break;
 			case "interfaces":
 				networkInterfaces.value = message.data;
 				break;
 			case "audioDevices":
 				audioInterfaces.value = message.data;
-				interfaceCount.value = message.data.length;
 				break;
 			case "updatePersistentData":
 				// Apply from main without triggering a save ping-pong
@@ -60,13 +56,14 @@ export const initIpcReceiver = () => {
 				persistentData.value = message.data;
 				applyingFromMain = false;
 				break;
+			case "workerError":
+				lastError.value = message.data;
+				console.error("[worker]", message.data);
+				break;
 			case "refreshAfterDeviceChange":
-				console.log("refresh after device change");
 				playing.value = "";
-				if (currentStream.value) {
-					// Lazy import to avoid circular dependency in Vue Store setup
-					const { playStream } = require("./actions");
-					playStream(currentStream.value);
+				if (currentStream.value && resumePlayback) {
+					resumePlayback(currentStream.value);
 				}
 				break;
 			default:

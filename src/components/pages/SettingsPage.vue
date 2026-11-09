@@ -5,8 +5,8 @@
 			<select
 				class="form-select"
 				id="networkSelect"
-				v-model="persistentData.network.currentInterface"
-				@change="savePersistentConfig()"
+				:value="persistentData.network.currentInterface"
+				@change="setNetworkInterface($event.target.value)"
 			>
 				<option
 					v-for="networkInterface in networkInterfaces"
@@ -113,18 +113,39 @@
 					Collapse Sidebar
 				</label>
 			</div>
-			<h6 class="mt-4">Set Admin Password</h6>
-			<div class="input-group mb-3">
+			<h6 class="mt-4">Admin Password</h6>
+			<div class="input-group mb-2">
 				<input
 					type="password"
 					class="form-control"
 					placeholder="Enter new password"
 					v-model="passwordInput"
+					@keyup.enter="applyPassword"
 				/>
-				<button class="btn btn-primary" @click="applyPassword">Save</button>
+				<button
+					class="btn btn-primary"
+					:disabled="!passwordInput"
+					@click="applyPassword"
+				>
+					Set
+				</button>
 			</div>
+			<button
+				class="btn btn-sm btn-outline-danger mb-2"
+				v-if="persistentData.hasPassword"
+				@click="clearPassword"
+			>
+				Remove password
+			</button>
 			<div class="form-text">
-				Password is stored hashed. Leave blank to keep the existing password.
+				{{
+					persistentData.hasPassword
+						? "A password is set. Admin mode asks for it before unlocking."
+						: "No password set - admin mode unlocks without asking."
+				}}
+				<br />
+				This guards against accidental operation. It is not access control:
+				anyone who can edit the config file can bypass it.
 			</div>
 			<div class="form-text text-success" v-if="passwordFeedback">
 				{{ passwordFeedback }}
@@ -140,18 +161,11 @@ import {
 	updateAudioInterface,
 	savePersistentConfig,
 	saveUserConfig,
+	setNetworkInterface,
 	userData,
 } from "../../app.js";
 
 import { ref } from "vue";
-
-// SHA-256 hashing using Web Crypto API
-async function hashPassword(password) {
-	const enc = new TextEncoder().encode(password);
-	const hashBuffer = await crypto.subtle.digest("SHA-256", enc);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 export default {
 	name: "SettingsPage",
@@ -159,24 +173,27 @@ export default {
 		const passwordInput = ref("");
 		const passwordFeedback = ref("");
 
-		const applyPassword = async () => {
-			if (!passwordInput.value) {
-				// Empty input → clear the passwordHash
-				persistentData.value.passwordHash = null;
-				passwordFeedback.value = "Password cleared successfully";
-			} else {
-				const hash = await hashPassword(passwordInput.value);
-				persistentData.value.passwordHash = hash;
-				passwordFeedback.value = "Password saved successfully";
-			}
-
-			passwordInput.value = "";
-			savePersistentConfig();
-
-			// Clear feedback after 3 seconds
+		const flashFeedback = (text) => {
+			passwordFeedback.value = text;
 			setTimeout(() => {
 				passwordFeedback.value = "";
 			}, 3000);
+		};
+
+		// Hashing and storage happen in the main process, which owns the hash.
+		// Setting and removing are separate actions so an empty field can no
+		// longer silently clear the password.
+		const applyPassword = async () => {
+			if (!passwordInput.value) return;
+			await window.electronAPI.setAdminPassword(passwordInput.value);
+			passwordInput.value = "";
+			flashFeedback("Password saved");
+		};
+
+		const clearPassword = async () => {
+			await window.electronAPI.setAdminPassword(null);
+			passwordInput.value = "";
+			flashFeedback("Password removed");
 		};
 
 		return {
@@ -187,8 +204,10 @@ export default {
 			saveUserConfig,
 			userData,
 
+			setNetworkInterface,
 			passwordInput,
 			applyPassword,
+			clearPassword,
 			passwordFeedback,
 		};
 	},

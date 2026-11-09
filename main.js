@@ -1,5 +1,11 @@
 // main.js
-const { app, BrowserWindow, ipcMain } = require("electron/main");
+const {
+	app,
+	BrowserWindow,
+	ipcMain,
+	screen,
+	session,
+} = require("electron/main");
 const path = require("node:path");
 const crypto = require("crypto");
 const { fork } = require("child_process");
@@ -10,9 +16,12 @@ const {
 	loadPersistentData,
 	loadUserData,
 	getPersistentData,
+	getPersistentDataForRenderer,
 	getUserData,
 	scheduleSaveUserData,
+	scheduleSavePersistentData,
 } = require("./backend/persistence/persistence");
+const { hashPassword, verifyPassword } = require("./backend/system/password");
 const {
 	initAudio,
 	restoreAudioInterface,
@@ -25,6 +34,7 @@ const {
 const {
 	handleIpcMessage,
 	init: initIpcHandler,
+	setWorkers,
 } = require("./backend/ipc/ipcHandler");
 
 // -----------------------------------------------------
@@ -36,6 +46,67 @@ let audioProcess = null;
 let streamsHash = null;
 let isSDPInitialized = false;
 let systemUpdateInterval;
+let isQuitting = false;
+
+// -----------------------------------------------------
+// Worker supervision
+// -----------------------------------------------------
+// Both workers parse data straight off the network. Without a respawn a single
+// bad announcement used to leave discovery or playback dead until restart.
+const WORKER_RESTART_DELAY = 1000;
+const WORKER_RESTART_DELAY_MAX = 30000;
+const workerBackoff = {
+	sdp: WORKER_RESTART_DELAY,
+	audio: WORKER_RESTART_DELAY,
+};
+
+function spawnWorker(name, scriptPath, onMessage, onRespawn) {
+	const child = fork(path.join(__dirname, scriptPath));
+
+	child.on("message", onMessage);
+
+	child.on("error", (err) => {
+		console.error(`[${name}] worker error`, err);
+	});
+
+	child.on("exit", (code, signal) => {
+		if (isQuitting) return;
+		console.error(`[${name}] worker exited (code=${code} signal=${signal})`);
+		sendMessage("workerError", {
+			worker: name,
+			code: "workerRestarted",
+			message: `The ${name} service stopped unexpectedly and was restarted.`,
+		});
+
+		const delay = workerBackoff[name];
+		workerBackoff[name] = Math.min(delay * 2, WORKER_RESTART_DELAY_MAX);
+		setTimeout(() => {
+			if (isQuitting) return;
+			console.log(`[${name}] respawning worker`);
+			onRespawn();
+		}, delay);
+	});
+
+	// A worker that stays up for a while is considered healthy again
+	setTimeout(() => {
+		if (!child.killed) workerBackoff[name] = WORKER_RESTART_DELAY;
+	}, WORKER_RESTART_DELAY_MAX);
+
+	return child;
+}
+
+function handleWorkerMessage(name, data) {
+	if (data && data.type === "error") {
+		console.error(`[${name}] ${data.data}`);
+		sendMessage("workerError", {
+			worker: name,
+			code: "workerFailure",
+			message: data.data,
+		});
+		return true;
+	}
+	return false;
+}
 
 // -----------------------------------------------------
 // Helper: Send to renderer
@@ -75,24 +146,89 @@ function restartStream() {
 // IPC Handlers (calls from renderer)
 // -----------------------------------------------------
 ipcMain.handle("get-shared-config", async () => ({
-	persistentData: getPersistentData(),
+	persistentData: getPersistentDataForRenderer(),
 	userData: getUserData(),
 }));
+
+// Verified here, not in the renderer, so the stored hash never leaves the main
+// process. A matching legacy SHA-256 hash is upgraded to scrypt in place.
+ipcMain.handle("verify-admin-password", async (_event, password) => {
+	const persistentData = getPersistentData();
+	if (!persistentData.passwordHash) return { ok: true, unlocked: true };
+
+	const { ok, needsRehash } = await verifyPassword(
+		password,
+		persistentData.passwordHash
+	);
+	if (ok && needsRehash) {
+		persistentData.passwordHash = await hashPassword(password);
+		scheduleSavePersistentData();
+	}
+	return { ok, unlocked: ok };
+});
+
+// An empty or null password clears the lock; the UI asks separately for that.
+ipcMain.handle("set-admin-password", async (_event, password) => {
+	const persistentData = getPersistentData();
+	if (!password) {
+		persistentData.passwordHash = null;
+	} else {
+		persistentData.passwordHash = await hashPassword(String(password));
+	}
+	scheduleSavePersistentData();
+	sendMessage("updatePersistentData", getPersistentDataForRenderer());
+	return { hasPassword: persistentData.passwordHash !== null };
+});
 
 ipcMain.on("recv-message", (event, message) => handleIpcMessage(message));
 
 // -----------------------------------------------------
 // Create Main Window
 // -----------------------------------------------------
+// Saved coordinates can point at a monitor that is no longer connected, which
+// would open the window off-screen. Only keep them if they still land on a
+// display that is actually attached.
+function isVisibleOnSomeDisplay(x, y, width, height) {
+	if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+	return screen.getAllDisplays().some((display) => {
+		const area = display.workArea;
+		return (
+			x + width > area.x &&
+			y + height > area.y &&
+			x < area.x + area.width &&
+			y < area.y + area.height
+		);
+	});
+}
+
 function getWindowState() {
 	const s = getUserData().settings.window;
+	const width = s.width || 1280;
+	const height = s.height || 800;
+	const onScreen = isVisibleOnSomeDisplay(s.x, s.y, width, height);
 	return {
-		width: s.width || 1280,
-		height: s.height || 800,
-		x: s.x ?? undefined,
-		y: s.y ?? undefined,
+		width,
+		height,
+		x: onScreen ? s.x : undefined,
+		y: onScreen ? s.y : undefined,
 		maximized: s.maximized ?? true,
 	};
+}
+
+function applyContentSecurityPolicy() {
+	// Only in the packaged app: the dev server needs eval for its sourcemaps
+	// and injects styles inline.
+	if (!app.isPackaged) return;
+	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		callback({
+			responseHeaders: {
+				...details.responseHeaders,
+				"Content-Security-Policy": [
+					"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+				],
+			},
+		});
+	});
 }
 
 function createMainWindow() {
@@ -100,8 +236,8 @@ function createMainWindow() {
 	mainWindow = new BrowserWindow({
 		width: winState.width,
 		height: winState.height,
-		x: winState.x !== null ? winState.x : undefined,
-		y: winState.y !== null ? winState.y : undefined,
+		x: winState.x,
+		y: winState.y,
 		autoHideMenuBar: app.isPackaged,
 		show: false,
 		webPreferences: {
@@ -109,6 +245,7 @@ function createMainWindow() {
 			preload: path.join(__dirname, "preload.js"),
 			contextIsolation: true,
 			nodeIntegration: false,
+			sandbox: true,
 		},
 	});
 
@@ -137,38 +274,68 @@ function createMainWindow() {
 // -----------------------------------------------------
 // Lazy Initialization
 // -----------------------------------------------------
+function onSdpMessage(data) {
+	if (handleWorkerMessage("sdp", data)) return;
+	if (!Array.isArray(data)) return;
+
+	sendMessage("streams", data);
+	// Streams hash logic for persistence update
+	const combinedRaw = data.map((s) => (s.manual ? s.raw : "")).join("");
+	const newHash = crypto.createHash("sha256").update(combinedRaw).digest("hex");
+	if (newHash !== streamsHash) {
+		streamsHash = newHash;
+		require("./backend/persistence/persistence").scheduleSavePersistentData();
+	}
+}
+
+function startSdpWorker() {
+	sdpProcess = spawnWorker(
+		"sdp",
+		"./src/lib/sdp.js",
+		onSdpMessage,
+		startSdpWorker
+	);
+	setWorkers(sdpProcess, audioProcess);
+	// A fresh worker knows nothing, so re-send the interface and timeout it
+	// had before instead of waiting for the next lazy init.
+	isSDPInitialized = false;
+}
+
+function startAudioWorker() {
+	audioProcess = spawnWorker(
+		"audio",
+		"./src/lib/audio.js",
+		(data) => handleWorkerMessage("audio", data),
+		startAudioWorker
+	);
+	setWorkers(sdpProcess, audioProcess);
+	// Playback cannot survive a worker restart; let the renderer decide whether
+	// to resume so its play state stays truthful.
+	handleIpcMessage({ type: "playingStatus", data: { isPlaying: false } });
+	sendMessage("refreshAfterDeviceChange");
+}
+
 async function lazyInit() {
 	// 1. Initialize Audio (sets API and creates rtAudio instance)
 	initAudio(sendMessage, restartStream);
 
-	// 2. Spawn child processes (adjust paths to your actual lib folder)
-	sdpProcess = fork(path.join(__dirname, "./src/lib/sdp.js"));
-	audioProcess = fork(path.join(__dirname, "./src/lib/audio.js"));
+	// 2. Initialize IPC Handler with callback references
+	initIpcHandler(sendMessage, () => saveWindowState(mainWindow));
 
-	// 3. Initialize IPC Handler with process/callback references
-	initIpcHandler(sdpProcess, audioProcess, sendMessage, () =>
-		saveWindowState(mainWindow)
+	// 3. Spawn supervised child processes
+	startSdpWorker();
+	audioProcess = spawnWorker(
+		"audio",
+		"./src/lib/audio.js",
+		(data) => handleWorkerMessage("audio", data),
+		startAudioWorker
 	);
+	setWorkers(sdpProcess, audioProcess);
 
-	// 4. Listen for SDP messages
-	sdpProcess.on("message", (data) => {
-		sendMessage("streams", data);
-		// Streams hash logic for persistence update
-		const combinedRaw = data.map((s) => (s.manual ? s.raw : "")).join("");
-		const newHash = crypto
-			.createHash("sha256")
-			.update(combinedRaw)
-			.digest("hex");
-		if (newHash !== streamsHash) {
-			streamsHash = newHash;
-			require("./backend/persistence/persistence").scheduleSavePersistentData();
-		}
-	});
-
-	// 5. Restore saved audio interface
+	// 4. Restore saved audio interface
 	restoreAudioInterface();
 
-	// 6. Start system update loop (reduced frequency)
+	// 5. Start system update loop (reduced frequency)
 	systemUpdateInterval = setInterval(updateSystem, 2000);
 }
 
@@ -196,17 +363,36 @@ function updateSystem() {
 // -----------------------------------------------------
 // App lifecycle
 // -----------------------------------------------------
-app.whenReady().then(async () => {
-	await loadPersistentData();
-	await loadUserData();
-	createMainWindow();
-	lazyInit();
-	app.on("activate", () => {
-		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+// A second instance would bind the same SAP port and race the first one for
+// the config file, so hand focus to the running window instead.
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
+	app.quit();
+} else {
+	app.on("second-instance", () => {
+		if (!mainWindow || mainWindow.isDestroyed()) return;
+		if (mainWindow.isMinimized()) mainWindow.restore();
+		mainWindow.focus();
 	});
+
+	app.whenReady().then(async () => {
+		await loadPersistentData();
+		await loadUserData();
+		applyContentSecurityPolicy();
+		createMainWindow();
+		lazyInit();
+		app.on("activate", () => {
+			if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+		});
+	});
+}
+
+app.on("before-quit", () => {
+	isQuitting = true;
 });
 
 app.on("window-all-closed", () => {
+	isQuitting = true;
 	if (systemUpdateInterval) clearInterval(systemUpdateInterval);
 	sdpProcess?.kill();
 	audioProcess?.kill();

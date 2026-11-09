@@ -23,8 +23,9 @@
 					<input
 						class="form-control form-control-sm"
 						type="text"
-						v-model="device.name"
+						v-model="draft.name"
 						v-else
+						@keyup.enter="toggleEdit(device)"
 					/>
 				</td>
 				<td>{{ device.address }}</td>
@@ -36,12 +37,19 @@
 					<input
 						class="form-control form-control-sm"
 						type="text"
-						v-model="device.description"
+						v-model="draft.description"
 						v-else
+						@keyup.enter="toggleEdit(device)"
 					/>
 				</td>
 				<td>
-					<button class="btn btn-sm btn-primary" @click="edit(device.address)">
+					<button
+						class="btn btn-sm btn-primary"
+						:title="
+							editDevice === device.address ? 'Save device' : 'Rename device'
+						"
+						@click="toggleEdit(device)"
+					>
 						<i
 							class="bi"
 							:class="{
@@ -76,11 +84,14 @@ export default {
 	name: "DevicesPage",
 	setup() {
 		const editDevice = ref("");
+		// Edits are held in a draft: binding straight to the computed rows below
+		// wrote into a throwaway object, so renames were silently discarded.
+		const draft = ref({ name: "", description: "" });
 
 		// Computed devices list for display
 		const devices = computed(() => {
 			return searchDevices.value.map((d) => {
-				const stored = persistentData.value.devices[d.ip] || {};
+				const stored = persistentData.value.devices?.[d.ip] || {};
 				return {
 					address: d.ip,
 					name: stored.name || d.name,
@@ -90,26 +101,29 @@ export default {
 			});
 		});
 
-		// Function to update a device when editing finishes
-		const updateDevice = (device) => {
-			persistentData.value.devices[device.address] = {
-				name: device.name,
-				description: device.description,
-				count: device.count,
-			};
-			savePersistentConfig();
-		};
-
-		const edit = (address) => {
-			if (editDevice.value === address) editDevice.value = "";
-			else editDevice.value = address;
+		const toggleEdit = (device) => {
+			if (editDevice.value === device.address) {
+				if (!persistentData.value.devices) persistentData.value.devices = {};
+				persistentData.value.devices[device.address] = {
+					name: draft.value.name.trim() || device.address,
+					description: draft.value.description.trim() || "-",
+				};
+				savePersistentConfig();
+				editDevice.value = "";
+			} else {
+				editDevice.value = device.address;
+				draft.value = {
+					name: device.name === device.address ? "" : device.name,
+					description: device.description === "-" ? "" : device.description,
+				};
+			}
 		};
 
 		return {
 			devices,
 			editDevice,
-			edit,
-			updateDevice,
+			draft,
+			toggleEdit,
 			viewDevice,
 		};
 	},

@@ -5,22 +5,27 @@ import { ref } from "vue";
 export const page = ref("favorites");
 export const search = ref({ streams: "", interfaces: "", devices: "" });
 export const streams = ref([]);
-export const favorites = ref([]);
-export const devices = ref([]);
-export const favoriteCount = ref(0);
 export const streamCount = ref(0);
 export const networkInterfaces = ref([]);
 export const audioInterfaces = ref([]);
-export const interfaceCount = ref(0);
 export const selectedStream = ref(null);
-export const selectedChannel = ref([]);
-export const streamIndex = ref([]);
+export const selectedChannel = ref({});
+export const streamIndex = ref({});
 export const visibleStreams = ref(0);
 export const playing = ref("");
 export const currentStream = ref("");
 export const rawSDP = ref({ sdp: "", announce: false });
 
+// Session state, deliberately not persisted: a kiosk machine has to come back
+// up locked after a restart.
+export const adminMode = ref(false);
+
+// Last error reported by the main process or one of its workers
+export const lastError = ref(null);
+
 // --- Persistent (machine-wide) config defaults ---
+// Mirrors backend/config/defaults.js. The password hash is never sent here,
+// only the hasPassword flag.
 export const persistentData = ref({
 	settings: {
 		bufferSize: 16,
@@ -32,8 +37,10 @@ export const persistentData = ref({
 		storedAudioInterface: null,
 	},
 	network: { interfaces: [], currentInterface: "" },
-	devices: [],
+	devices: {},
 	favorites: [],
+	streamNames: {},
+	hasPassword: false,
 });
 
 // --- User config defaults ---

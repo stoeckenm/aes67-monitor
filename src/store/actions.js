@@ -16,7 +16,34 @@ import {
 	rawSDP,
 } from "./state";
 import { sendMessage } from "./ipc";
-import { saveUserConfig } from "./config";
+import { saveUserConfig, savePersistentConfig } from "./config";
+
+// --- Friendly names ---
+// Kept in a map keyed by stream id rather than on the stream objects, which
+// are replaced wholesale on every discovery update.
+export const getStreamName = (stream) => {
+	if (!stream) return "";
+	return persistentData.value.streamNames?.[stream.id] || "";
+};
+export const getDisplayName = (stream) =>
+	getStreamName(stream) || stream?.name || "-";
+export const setStreamName = (streamId, name) => {
+	if (!streamId) return;
+	if (!persistentData.value.streamNames) persistentData.value.streamNames = {};
+	const trimmed = (name || "").trim();
+	if (trimmed) persistentData.value.streamNames[streamId] = trimmed;
+	else delete persistentData.value.streamNames[streamId];
+	savePersistentConfig();
+};
+
+// --- Network ---
+// The selection has to be announced explicitly; persisting it alone leaves the
+// discovery worker on the old interface until the app restarts.
+export const setNetworkInterface = (address) => {
+	if (!address) return;
+	persistentData.value.network.currentInterface = address;
+	sendMessage({ type: "setNetwork", data: address });
+};
 
 // --- UI Helpers ---
 export const isBackBtnActive = () => ["stream", "sdp"].includes(page.value);
@@ -26,7 +53,7 @@ export const goBack = () => {
 export const getTitle = () => {
 	switch (page.value) {
 		case "stream":
-			return selectedStream.value?.name || "";
+			return getDisplayName(selectedStream.value);
 		case "sdp":
 			return "Add Stream";
 		case "interfaces":
@@ -61,12 +88,12 @@ export const setSidebarStatus = (status) => {
 
 // --- Search / Filters ---
 export const searchStreams = () => {
+	const term = search.value.streams.toLowerCase();
 	const filteredStream = streams.value.filter((stream) => {
 		return (
-			(stream.name.toLowerCase().includes(search.value.streams.toLowerCase()) ||
-				stream.origin.address
-					.toLowerCase()
-					.includes(search.value.streams.toLowerCase()) ||
+			((stream.name || "").toLowerCase().includes(term) ||
+				getStreamName(stream).toLowerCase().includes(term) ||
+				(stream.origin?.address || "").toLowerCase().includes(term) ||
 				stream.id.includes(search.value.streams)) &&
 			(stream.isSupported || !persistentData.value.settings.hideUnsupported)
 		);

@@ -158,12 +158,15 @@
 		</div>
 
 		<div class="col-md-4">
+			<!-- Read-only view of the announcement. v-model here would write
+			back into the live stream object, and the inline onclick handler is
+			blocked by the packaged app's CSP. -->
 			<textarea
 				class="form-control"
 				id="textarea-sdp"
-				v-bind:rows="getTextareaRowNumber()"
-				onclick="this.focus();this.select()"
-				v-model="selectedStream.raw"
+				:rows="getTextareaRowNumber()"
+				:value="selectedStream.raw"
+				@click="$event.target.select()"
 				readonly
 			></textarea>
 		</div>
@@ -173,30 +176,25 @@
 import { ref, watch } from "vue";
 import {
 	selectedStream,
-	saveUserConfig,
+	getStreamName,
+	setStreamName,
 	getTextareaRowNumber,
 } from "../../app.js";
 
 export default {
 	name: "StreamPage",
 	setup() {
-		// Ensure selectedStream has a friendlyName
-		if (!selectedStream.value.friendlyName) {
-			selectedStream.value.friendlyName = "";
-		}
+		// The name is stored in a map keyed by stream id, not on the stream
+		// object: those are replaced on every discovery update, which used to
+		// discard the name again moments after it was typed.
+		const friendlyName = ref(getStreamName(selectedStream.value));
 
-		const friendlyName = ref(selectedStream.value.friendlyName);
-
-		// Sync reactive input with selectedStream.friendlyName
 		watch(friendlyName, (newVal) => {
-			selectedStream.value.friendlyName = newVal;
-			saveUserConfig(); // persist the whole selectedStream object as usual
+			setStreamName(selectedStream.value?.id, newVal);
 		});
 
-		// Optional: handle stream changes dynamically
 		watch(selectedStream, (newStream) => {
-			if (!newStream.friendlyName) newStream.friendlyName = "";
-			friendlyName.value = newStream.friendlyName;
+			friendlyName.value = getStreamName(newStream);
 		});
 
 		return {

@@ -1,12 +1,44 @@
 // config/paths.js
 const path = require("node:path");
+const fs = require("node:fs");
 const { app } = require("electron/main");
 
-// Shared (machine-wide) config
-const persistentDir =
-	process.platform === "win32"
-		? path.join(process.env.ProgramData, "StreamMonitor")
-		: path.join("/etc/StreamMonitor");
+function isWritable(dir) {
+	try {
+		fs.mkdirSync(dir, { recursive: true });
+		fs.accessSync(dir, fs.constants.W_OK);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+// Machine-wide config, shared by all users of the machine. The previous
+// /etc/StreamMonitor required root on macOS and Linux, so saving silently
+// failed for ordinary users; fall back to a per-user directory there.
+function resolvePersistentDir() {
+	const candidates = [];
+
+	if (process.platform === "win32") {
+		const programData = process.env.ProgramData || "C:\\ProgramData";
+		candidates.push(path.join(programData, "StreamMonitor"));
+	} else if (process.platform === "darwin") {
+		candidates.push("/Library/Application Support/StreamMonitor");
+	} else {
+		candidates.push("/etc/StreamMonitor");
+	}
+
+	// Last resort, always writable by the current user
+	const perUser = path.join(app.getPath("appData"), "StreamMonitor", "shared");
+	candidates.push(perUser);
+
+	for (const dir of candidates) {
+		if (isWritable(dir)) return dir;
+	}
+	return perUser;
+}
+
+const persistentDir = resolvePersistentDir();
 module.exports.persistentPath = path.join(persistentDir, "config.json");
 module.exports.persistentDir = persistentDir;
 

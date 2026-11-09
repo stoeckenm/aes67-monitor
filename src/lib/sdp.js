@@ -3,90 +3,13 @@ const sdpTransform = require("sdp-transform");
 const crypto = require("crypto");
 
 const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
-const supportedSampleRates = [16000, 32000, 44100, 48000, 88200, 96000, 192000];
+const { preParse } = require("./sdpParse");
+
 let cb = function (error) {
 	console.error(error);
 };
 let sessions = {};
 let deleteTimeout = 5 * 60 * 1000;
-
-const preParse = function (sdp) {
-	//check if valid for playback
-	sdp = isSupportedStream(sdp);
-	sdp.dante = sdp.keywords == "Dante";
-
-	//get multicast from connection
-	if (sdp.media[0] && sdp.media[0].connection && sdp.media[0].connection.ip) {
-		sdp.mcast = sdp.media[0].connection.ip.split("/")[0];
-	} else if (sdp.connection && sdp.connection.ip) {
-		sdp.mcast = sdp.connection.ip.split("/")[0];
-	} else {
-		sdp.mcast = "-";
-		sdp.isSupported = false;
-	}
-
-	sdp.description = sdp.description ? sdp.description : "-";
-	if (sdp.description == "-" && sdp.media[0].description) {
-		sdp.description = sdp.media[0].description;
-	}
-
-	if (sdp.isSupported) {
-		sdp.codec = sdp.media[0].rtp[0].codec;
-		sdp.samplerate = sdp.media[0].rtp[0].rate;
-		sdp.channels = sdp.media[0].rtp[0].encoding;
-		sdp.rtpMap = sdp.codec + "/" + sdp.samplerate + "/" + sdp.channels;
-	} else {
-		sdp.rtpMap = "-";
-	}
-
-	return sdp;
-};
-
-const isSupportedStream = function (sdp) {
-	if (sdp.media.length <= 0) {
-		sdp.isSupported = false;
-		sdp.unsupportedReason = "Unsupported media type";
-		return sdp;
-	}
-
-	for (let i = 0; i < sdp.media.length; i++) {
-		if (sdp.media[i].type != "audio" || sdp.media[i].protocol != "RTP/AVP") {
-			sdp.isSupported = false;
-			sdp.unsupportedReason = "Unsupported media type";
-			return sdp;
-		}
-
-		if (sdp.media[i].rtp.length != 1) {
-			sdp.isSupported = false;
-			sdp.unsupportedReason = "Unsupported rtpmap";
-			return sdp;
-		}
-
-		if (supportedSampleRates.indexOf(sdp.media[i].rtp[0].rate) === -1) {
-			sdp.isSupported = false;
-			sdp.unsupportedReason = "Unsupported samplerate";
-			return sdp;
-		}
-
-		if (
-			sdp.media[i].rtp[0].codec != "L24" &&
-			sdp.media[i].rtp[0].codec != "L16"
-		) {
-			sdp.isSupported = false;
-			sdp.unsupportedReason = "Unsupported codec";
-			return sdp;
-		}
-
-		if (sdp.media[i].rtp[0].encoding < 1 || sdp.media[i].rtp[0].encoding > 64) {
-			sdp.isSupported = false;
-			sdp.unsupportedReason = "Unsupported channel number";
-			return sdp;
-		}
-	}
-
-	sdp.isSupported = true;
-	return sdp;
-};
 
 socket.on("message", function (message) {
 	if (

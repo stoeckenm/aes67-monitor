@@ -6,15 +6,91 @@ let client;
 let streamOpen = false;
 let argsCache;
 
+// Report a playback failure to the main process instead of dying. A thrown
+// error here would kill the forked worker and leave the app mute until restart.
+const reportError = function (reason, err) {
+	if (err) console.error(`[AUDIO] ${reason}`, err);
+	else console.error(`[AUDIO] ${reason}`);
+	try {
+		process.send({ type: "error", data: reason });
+	} catch (sendErr) {
+		console.error("[AUDIO] Could not report error to main", sendErr);
+	}
+};
+
+// ptime and channel count come from a network announcement, so they may be
+// missing or nonsense. An invalid samplesPerPacket of 0 would spin the
+// outSampleFactor loop below forever, and NaN would throw in Buffer.alloc.
+const resolveFormat = function (args) {
+	const samplerate = Number(args.samplerate);
+	const channels = Number(args.channels);
+	const ptime = Number(args.ptime);
+
+	if (!Number.isFinite(samplerate) || samplerate <= 0) {
+		return { error: `Invalid sample rate: ${args.samplerate}` };
+	}
+	if (!Number.isInteger(channels) || channels < 1 || channels > 64) {
+		return { error: `Invalid channel count: ${args.channels}` };
+	}
+	// ptime is optional per RFC 4566; AES67 defaults to 1 ms packets
+	const effectivePtime = Number.isFinite(ptime) && ptime > 0 ? ptime : 1;
+	const samplesPerPacket = Math.round((samplerate / 1000) * effectivePtime);
+
+	if (!Number.isFinite(samplesPerPacket) || samplesPerPacket < 1) {
+		return {
+			error: `Invalid packet time: ${args.ptime} at ${samplerate} Hz`,
+		};
+	}
+
+	// A stale favorite can carry a channel mapping wider than the stream it is
+	// replayed against; an out-of-range read would throw inside the UDP handler.
+	const clamp = (value) => {
+		const index = Number(value);
+		if (!Number.isInteger(index) || index < 0) return 0;
+		return Math.min(index, channels - 1);
+	};
+
+	return {
+		samplerate,
+		channels,
+		samplesPerPacket,
+		ch1Map: clamp(args.ch1Map),
+		ch2Map: clamp(args.ch2Map),
+	};
+};
+
+const closeStream = function () {
+	if (client) {
+		try {
+			client.close();
+		} catch (err) {
+			console.error("[AUDIO] Error closing socket", err);
+		}
+		client = null;
+	}
+	if (rtAudio) {
+		try {
+			rtAudio.stop();
+			rtAudio.clearOutputQueue();
+			rtAudio.closeStream();
+		} catch (err) {
+			console.error("[AUDIO] Error closing audio stream", err);
+		}
+		rtAudio = null;
+	}
+	streamOpen = false;
+};
+
 const start = function (args) {
 	argsCache = args;
-	if (streamOpen) {
-		streamOpen = false;
-		client.close();
-		rtAudio.stop();
-		rtAudio.clearOutputQueue();
-		rtAudio.closeStream();
+	closeStream();
+
+	const format = resolveFormat(args);
+	if (format.error) {
+		reportError(format.error);
+		return;
 	}
+	const { samplerate, channels, samplesPerPacket, ch1Map, ch2Map } = format;
 
 	client = dgram.createSocket({ type: "udp4", reuseAddr: true });
 
@@ -24,14 +100,22 @@ const start = function (args) {
 	});
 
 	client.on("listening", function () {
-		client.addMembership(args.mcast, args.networkInterface);
+		try {
+			client.addMembership(args.mcast, args.networkInterface);
+		} catch (err) {
+			reportError(`Could not join multicast group ${args.mcast}`, err);
+		}
 	});
 
 	// Constants
 	const bufferSize = 1024;
-	const samplesPerPacket = Math.round((args.samplerate / 1000) * args.ptime);
 	const bytesPerSample = args.codec == "L24" ? 3 : 2;
-	const pcmDataSize = samplesPerPacket * bytesPerSample * args.channels;
+	// RFC 4570 allows a space separated src-list; sdp-transform hands it over
+	// as one string, so a plain equality check would reject every packet.
+	const filterAddrs = args.filter
+		? String(args.filterAddr).trim().split(/\s+/).filter(Boolean)
+		: [];
+	const pcmDataSize = samplesPerPacket * bytesPerSample * channels;
 	const pcmL16out = Buffer.alloc(samplesPerPacket * 4 * bufferSize);
 
 	let jitterBufferSize = args.jitterBufferEnabled ? args.jitterBufferSize : 0;
@@ -64,7 +148,7 @@ const start = function (args) {
 
 		if (
 			buffer.length != pcmDataSize + headerLength ||
-			(args.filter && remote.address != args.filterAddr)
+			(filterAddrs.length > 0 && !filterAddrs.includes(remote.address))
 		) {
 			return;
 		}
@@ -75,13 +159,13 @@ const start = function (args) {
 		for (let sample = 0; sample < samplesPerPacket; sample++) {
 			pcmL16out.writeUInt16LE(
 				buffer.readUInt16BE(
-					(sample * args.channels + args.ch1Map) * bytesPerSample + headerLength
+					(sample * channels + ch1Map) * bytesPerSample + headerLength
 				),
 				sample * 4 + bufferIndex
 			);
 			pcmL16out.writeUInt16LE(
 				buffer.readUInt16BE(
-					(sample * args.channels + args.ch2Map) * bytesPerSample + headerLength
+					(sample * channels + ch2Map) * bytesPerSample + headerLength
 				),
 				sample * 4 + bufferIndex + 2
 			);
@@ -94,11 +178,22 @@ const start = function (args) {
 					bufferIndex,
 					bufferIndex + samplesPerPacket * 4 * outSampleFactor
 				);
-				rtAudio.write(outBuf);
+				// The output device can disappear mid-stream; an unguarded throw
+				// in this handler would take the whole worker down.
+				try {
+					rtAudio.write(outBuf);
+				} catch (error) {
+					reportError("Lost audio output device during playback", error);
+					closeStream();
+					return;
+				}
 			}
 			seqInternal = (seqInternal + 1) % bufferSize;
 		} else {
-			seqInternal = (seqNum - jitterBufferSize) % bufferSize;
+			// Modulo of a negative value yields a negative index in JS, which
+			// would make subarray() read from the end of the ring buffer.
+			seqInternal =
+				(((seqNum - jitterBufferSize) % bufferSize) + bufferSize) % bufferSize;
 
 			for (var j = 0; j < jitterBufferSize; j++) {
 				try {
@@ -110,39 +205,47 @@ const start = function (args) {
 		}
 	});
 
-	rtAudio = new RtAudio(args.audioAPI);
-	let devices = rtAudio.getDevices();
-	let id;
-	let found = false;
-	let defaultOutputDevice;
-	for (let i = 0; i < devices.length; i++) {
-		if (
-			devices[i].name == args.selected.name &&
-			devices[i].inputChannels == args.selected.inputChannels &&
-			devices[i].outputChannels == args.selected.outputChannels
-		) {
-			console.log("Found device: " + devices[i].name);
-			id = devices[i].id;
-			found = true;
-			break;
-		}
-
-		if (devices[i].isDefaultOutput && devices[i].outputChannels >= 2) {
-			defaultOutputDevice = devices[i];
-		}
+	try {
+		rtAudio = new RtAudio(args.audioAPI);
+	} catch (error) {
+		reportError("Could not initialize the audio system", error);
+		closeStream();
+		return;
 	}
 
-	if (!found) {
-		console.log("Falling back to default device");
-		id = defaultOutputDevice.id;
+	const devices = rtAudio.getDevices();
+	const selected = args.selected || {};
+	// Match on name plus channel counts, never on id: RtAudio ids are not
+	// stable across device changes.
+	let device = devices.find(
+		(d) =>
+			d.name == selected.name &&
+			d.inputChannels == selected.inputChannels &&
+			d.outputChannels == selected.outputChannels
+	);
+
+	if (device) {
+		console.log("Found device: " + device.name);
+	} else {
+		// Fall back through default output, then any usable output, instead of
+		// dereferencing an undefined device.
+		device =
+			devices.find((d) => d.isDefaultOutput && d.outputChannels >= 2) ||
+			devices.find((d) => d.outputChannels >= 2);
+		if (!device) {
+			reportError("No audio output device with at least two channels found");
+			closeStream();
+			return;
+		}
+		console.log("Falling back to output device: " + device.name);
 	}
 
 	try {
 		rtAudio.openStream(
-			{ deviceId: id, nChannels: 2, firstChannel: 0 },
+			{ deviceId: device.id, nChannels: 2, firstChannel: 0 },
 			null,
 			RtAudioFormat.RTAUDIO_SINT16,
-			args.samplerate,
+			samplerate,
 			samplesPerPacket * outSampleFactor,
 			"AES67 Monitor"
 		);
@@ -150,7 +253,8 @@ const start = function (args) {
 		client.bind(args.port);
 		streamOpen = true;
 	} catch (error) {
-		console.error("Error during stream setup:", error);
+		reportError(`Could not open audio output "${device.name}"`, error);
+		closeStream();
 	}
 };
 
@@ -162,13 +266,7 @@ const restart = (args) => {
 };
 
 const stop = function () {
-	if (streamOpen) {
-		streamOpen = false;
-		client.close();
-		rtAudio.stop();
-		rtAudio.clearOutputQueue();
-		rtAudio.closeStream();
-	}
+	closeStream();
 };
 
 process.on("message", (message) => {

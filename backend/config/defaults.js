@@ -11,8 +11,12 @@ module.exports.persistentDataDefaults = {
 		storedAudioInterface: null,
 	},
 	network: { interfaces: [], currentInterface: "" },
-	devices: [],
+	// Keyed by device IP address: { "10.0.0.5": { name, description } }
+	devices: {},
 	favorites: [],
+	// Friendly names keyed by stream id, kept out of the live stream objects
+	// because those are replaced wholesale on every discovery update.
+	streamNames: {},
 	passwordHash: null,
 };
 

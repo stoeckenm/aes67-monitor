@@ -1,6 +1,7 @@
 // ipc/ipcHandler.js
 const {
 	getPersistentData,
+	getPersistentDataForRenderer,
 	setPersistentData,
 	getUserData,
 	setUserData,
@@ -28,11 +29,16 @@ let saveWindowStateCallback = null;
 let isStreamRunning = false;
 let currentPlayArgs = null;
 
-module.exports.init = (sdp, audio, sendMessage, saveWindow) => {
-	sdpProcess = sdp;
-	audioProcess = audio;
+module.exports.init = (sendMessage, saveWindow) => {
 	sendMessageCallback = sendMessage;
 	saveWindowStateCallback = saveWindow;
+};
+
+// Called again after a worker respawn, otherwise the captured references would
+// point at a dead process and every send would silently go nowhere.
+module.exports.setWorkers = (sdp, audio) => {
+	sdpProcess = sdp;
+	audioProcess = audio;
 };
 
 module.exports.setIsStreamRunning = (status) => {
@@ -48,7 +54,10 @@ module.exports.handleIpcMessage = async (message) => {
 	switch (message.type) {
 		case "update":
 			if (sendMessageCallback)
-				sendMessageCallback("updatePersistentData", persistentData);
+				sendMessageCallback(
+					"updatePersistentData",
+					getPersistentDataForRenderer()
+				);
 			// updateSystem (main.js) is called externally after this
 			sdpProcess?.send({ type: "update" });
 			break;
@@ -102,34 +111,6 @@ module.exports.handleIpcMessage = async (message) => {
 			}
 			break;
 
-		// Generic 'save' from renderer (not used in refactoring, but kept for compatibility)
-		case "save":
-			try {
-				const parsed = JSON.parse(message.data);
-				if (
-					message.key &&
-					Object.prototype.hasOwnProperty.call(persistentData, message.key)
-				) {
-					persistentData[message.key] = parsed;
-
-					if (message.key === "settings") {
-						if (sdpProcess) {
-							sdpProcess.send({
-								type: "deleteTimeout",
-								data: persistentData.settings.sdpDeleteTimeout,
-							});
-						}
-					}
-					setPersistentData(persistentData);
-					scheduleSavePersistentData();
-				} else {
-					console.warn("save: unknown persistentData key:", message.key);
-				}
-			} catch (err) {
-				console.error("save: invalid JSON payload", err);
-			}
-			break;
-
 		// Save entire or partial persistentData object
 		case "savePersistent":
 			try {
@@ -142,19 +123,38 @@ module.exports.handleIpcMessage = async (message) => {
 							...persistentDataDefaults.settings,
 							...(parsed.settings || {}),
 						},
-						network: {
-							...persistentDataDefaults.network,
-							...(parsed.network || {}),
-						},
-						devices: Array.isArray(parsed.devices)
-							? parsed.devices
-							: persistentDataDefaults.devices,
+						// Also main-owned: the interface list is re-derived from the
+						// OS on a timer, and the selection changes via "setNetwork".
+						// Accepting the renderer's copy here would let a stale
+						// snapshot revert the selected interface.
+						network: persistentData.network,
+						devices:
+							parsed.devices && typeof parsed.devices === "object"
+								? parsed.devices
+								: persistentData.devices,
 						favorites: Array.isArray(parsed.favorites)
 							? parsed.favorites
-							: persistentDataDefaults.favorites,
+							: persistentData.favorites,
+						streamNames:
+							parsed.streamNames && typeof parsed.streamNames === "object"
+								? parsed.streamNames
+								: persistentData.streamNames,
+						// Owned by the main process. The renderer is never sent the
+						// hash, so trusting its copy here would wipe the password on
+						// every save.
+						passwordHash: persistentData.passwordHash,
 					};
+					// Never persist renderer-only state
+					delete persistentData.adminMode;
+					delete persistentData.hasPassword;
+
+					sdpProcess?.send({
+						type: "deleteTimeout",
+						data: persistentData.settings.sdpDeleteTimeout,
+					});
 				} else if (
 					message.key &&
+					message.key !== "passwordHash" &&
 					Object.prototype.hasOwnProperty.call(persistentData, message.key)
 				) {
 					persistentData[message.key] = parsed;

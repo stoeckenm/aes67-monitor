@@ -2,7 +2,8 @@
 // Entrypoint for the Vue/Renderer application
 
 import { loadSharedConfig, setupConfigWatchers } from "./store/config";
-import { initIpcReceiver } from "./store/ipc";
+import { initIpcReceiver, setResumePlaybackHandler } from "./store/ipc";
+import { playStream } from "./store/actions";
 
 // Export all state and actions for use in Vue components
 export * from "./store/state";
@@ -14,5 +15,8 @@ export * from "./store/ipc";
 loadSharedConfig().then(() => {
 	// Setup watchers only after config is loaded
 	setupConfigWatchers();
+	// Injected here rather than imported inside ipc.js, which would create a
+	// cycle between ipc and actions.
+	setResumePlaybackHandler(playStream);
 	initIpcReceiver(); // Initialize IPC receiver to listen for updates
 });

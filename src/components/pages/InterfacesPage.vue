@@ -90,7 +90,7 @@
 				<td>
 					<button
 						class="btn btn-sm btn-primary"
-						.disabled="audioInterface.isCurrent"
+						:disabled="audioInterface.isCurrent"
 						@click="setCurrentAudioInterface(audioInterface)"
 					>
 						Set as Output
@@ -104,8 +104,7 @@
 						<i
 							class="bi"
 							:class="
-								persistentData.settings.storedAudioInterface?.name ===
-								audioInterface.name
+								isPreferred(audioInterface)
 									? 'bi-star-fill text-warning'
 									: 'bi-star'
 							"
@@ -123,20 +122,36 @@ import {
 	getAudioOutputDevices,
 	getAudioInputDevices,
 	setCurrentAudioInterface,
+	savePersistentConfig,
 } from "../../app.js";
 
 export default {
 	name: "InterfacesPage",
 	setup() {
+		// RtAudio ids are not stable across device changes, so the preferred
+		// device is matched the same way the main process matches it.
+		function isPreferred(audioInterface) {
+			const stored = persistentData.value.settings.storedAudioInterface;
+			if (!stored) return false;
+			return (
+				stored.name === audioInterface.name &&
+				stored.inputChannels === audioInterface.inputChannels &&
+				stored.outputChannels === audioInterface.outputChannels
+			);
+		}
+
 		function setPreferred(audioInterface) {
-			if (
-				persistentData.value.settings.storedAudioInterface?.id ===
-				audioInterface.id
-			) {
+			if (isPreferred(audioInterface)) {
 				persistentData.value.settings.storedAudioInterface = null;
 			} else {
-				persistentData.value.settings.storedAudioInterface = audioInterface;
+				// Store only the identifying fields, not the whole device object
+				persistentData.value.settings.storedAudioInterface = {
+					name: audioInterface.name,
+					inputChannels: audioInterface.inputChannels,
+					outputChannels: audioInterface.outputChannels,
+				};
 			}
+			savePersistentConfig();
 		}
 		return {
 			persistentData,
@@ -144,6 +159,7 @@ export default {
 			getAudioInputDevices,
 			setCurrentAudioInterface,
 			setPreferred,
+			isPreferred,
 		};
 	},
 };

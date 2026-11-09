@@ -2,61 +2,64 @@
 	<div
 		class="alert alert-primary"
 		role="alert"
-		v-if="sortedStreamsLocal?.length === 0"
+		v-if="resolvedFavorites.length === 0"
 	>
-		No favorite streams found.
-		<span v-if="streamCount == 0">
-			It might take a few seconds for streams to show up.
+		No favorite streams yet.
+		<span v-if="adminMode">
+			Star a stream on the Streams page to add it here.
 		</span>
 	</div>
 
 	<!-- GRID of favorites -->
 	<draggable
-		v-if="sortedStreamsLocal?.length > 0"
-		v-model="sortedStreamsLocal"
+		v-if="resolvedFavorites.length > 0"
+		v-model="order"
 		item-key="id"
 		:disabled="!adminMode"
 		class="row g-3"
-		@end="saveOrder"
+		@end="commitOrder"
 	>
-		<template #item="{ element: stream }">
+		<template #item="{ element: favorite }">
 			<div class="col-12 col-sm-6 col-md-4 col-lg-3">
 				<div
 					class="card shadow-sm h-100"
-					:class="{ 'draggable-active': adminMode }"
+					:class="{
+						'draggable-active': adminMode,
+						'favorite-offline': !favorite.online,
+					}"
 				>
 					<div
 						class="card-body d-flex justify-content-between align-items-start"
 					>
-						<div>
+						<div class="overflow-hidden">
 							<h4 class="card-title text-truncate mb-1">
-								{{ getDisplayName(stream) }}
+								{{ favorite.name }}
 							</h4>
+							<!-- A favorite whose stream is not being announced stays
+							visible, so the operator can tell it is gone. -->
+							<small v-if="!favorite.online" class="text-danger">
+								Currently not on the network
+							</small>
 						</div>
 
-						<div class="text-end">
-							<!-- Play / Stop Button -->
+						<div class="text-end flex-shrink-0">
 							<button
 								class="btn btn-sm me-1"
 								:class="{
-									'btn-success': stream.id !== playing,
-									'btn-danger': stream.id === playing,
+									'btn-success': !isPlaying(favorite.id),
+									'btn-danger': isPlaying(favorite.id),
 								}"
-								@click="playStream(stream)"
-								v-if="stream.isSupported"
-								:disabled="
-									!getCurrentSupportedSampleRates().includes(stream.samplerate)
-								"
+								:disabled="!canPlay(favorite)"
+								@click="play(favorite)"
 							>
-								<i v-if="stream.id === playing" class="bi bi-stop-fill"></i>
+								<i v-if="isPlaying(favorite.id)" class="bi bi-stop-fill"></i>
 								<i v-else class="bi bi-play-fill"></i>
 							</button>
 
-							<!-- Remove Button (Admin only) -->
 							<button
 								v-if="adminMode"
 								class="btn btn-sm btn-outline-danger"
-								@click="removeFavorite(stream)"
+								@click="remove(favorite)"
 							>
 								<i class="bi bi-trash"></i>
 							</button>
@@ -70,119 +73,60 @@
 
 <script>
 import draggable from "vuedraggable";
+import { ref, watch } from "vue";
 import {
-	streamCount,
+	adminMode,
 	playing,
 	playStream,
-	visibleStreams,
-	persistentData,
-	userData,
-	getCurrentSupportedSampleRates,
-	savePersistentConfig,
-	getDisplayName,
-	adminMode,
 	stopStream,
+	resolvedFavorites,
+	reorderFavorites,
+	removeFavorite,
+	isPlaying,
+	getCurrentSupportedSampleRates,
 } from "../../app.js";
-import { ref, watch } from "vue";
 
 export default {
 	name: "FavoritesPage",
 	components: { draggable },
 	setup() {
-		/* ---------- FAVORITES INITIALIZATION ---------- */
-		if (!persistentData.value.favorites) persistentData.value.favorites = [];
-
-		// Ensure each favorite has an order field
-		persistentData.value.favorites.forEach((f, idx) => {
-			if (f.order === undefined) f.order = idx;
+		// Local mirror for the drag handler, kept in step with the store
+		const order = ref([...resolvedFavorites.value]);
+		watch(resolvedFavorites, (next) => {
+			order.value = [...next];
 		});
 
-		// Reactive local copy for draggable
-		const sortedStreamsLocal = ref(
-			[...persistentData.value.favorites].sort((a, b) => a.order - b.order),
-		);
+		const commitOrder = () => {
+			reorderFavorites(order.value.map((favorite) => favorite.id));
+		};
 
-		/* ---------- KEEP LOCAL COPY IN SYNC ---------- */
-		watch(
-			() => persistentData.value.favorites,
-			(newFavs) => {
-				sortedStreamsLocal.value = [...newFavs].sort(
-					(a, b) => a.order - b.order,
-				);
-			},
-			{ deep: true, immediate: true },
-		);
+		const canPlay = (favorite) =>
+			favorite.playable &&
+			getCurrentSupportedSampleRates().includes(favorite.stream?.samplerate);
 
-		/* ---------- SAVE ORDER AFTER DRAG ---------- */
-		function saveOrder() {
-			// Update order based on current local array
-			sortedStreamsLocal.value.forEach((s, idx) => {
-				s.order = idx;
-			});
-
-			// Persist to main favorites array
-			persistentData.value.favorites = [...sortedStreamsLocal.value];
-			savePersistentConfig();
-		}
-
-		/* ---------- FAVORITE MANAGEMENT ---------- */
-		function toggleFavorite(stream) {
-			const index = persistentData.value.favorites.findIndex(
-				(s) => s.id === stream.id,
-			);
-			if (index === -1) {
-				// Add new favorite at the end
-				stream.order = persistentData.value.favorites.length;
-				persistentData.value.favorites.push(stream);
-			} else {
-				persistentData.value.favorites.splice(index, 1);
+		const play = (favorite) => {
+			if (isPlaying(favorite.id)) {
+				stopStream();
+				return;
 			}
+			if (favorite.stream) playStream(favorite.stream);
+		};
 
-			// Sync local array
-			sortedStreamsLocal.value = [...persistentData.value.favorites].sort(
-				(a, b) => a.order - b.order,
-			);
+		const remove = (favorite) => {
+			if (isPlaying(favorite.id)) stopStream();
+			removeFavorite(favorite.id);
+		};
 
-			savePersistentConfig();
-		}
-
-		function removeFavorite(stream) {
-			if (stream.id === playing.value) stopStream();
-
-			const index = persistentData.value.favorites.findIndex(
-				(s) => s.id === stream.id,
-			);
-			if (index !== -1) {
-				persistentData.value.favorites.splice(index, 1);
-
-				// Recalculate order for remaining favorites
-				persistentData.value.favorites.forEach((f, idx) => (f.order = idx));
-				sortedStreamsLocal.value = [...persistentData.value.favorites];
-
-				savePersistentConfig();
-			}
-		}
-
-		function isFavorite(stream) {
-			return persistentData.value.favorites.some((s) => s.id === stream.id);
-		}
-
-		/* ---------- RETURN TO TEMPLATE ---------- */
 		return {
-			sortedStreamsLocal,
-			saveOrder,
-			removeFavorite,
-			toggleFavorite,
-			isFavorite,
-			streamCount,
-			playing,
-			playStream,
-			visibleStreams,
-			userData,
-			persistentData,
+			order,
+			resolvedFavorites,
 			adminMode,
-			getDisplayName,
-			getCurrentSupportedSampleRates,
+			playing,
+			isPlaying,
+			canPlay,
+			play,
+			remove,
+			commitOrder,
 		};
 	},
 };
@@ -201,6 +145,9 @@ export default {
 }
 .card-title {
 	font-weight: 600;
+}
+.favorite-offline {
+	opacity: 0.6;
 }
 .draggable-active {
 	cursor: grab;

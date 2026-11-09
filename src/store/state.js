@@ -38,6 +38,7 @@ export const persistentData = ref({
 	network: { interfaces: [], currentInterface: "" },
 	devices: {},
 	favorites: [],
+	manualStreams: [],
 	streamNames: {},
 	hasPassword: false,
 });

@@ -10,6 +10,8 @@ export * from "./store/state";
 export * from "./store/actions";
 export * from "./store/config";
 export * from "./store/ipc";
+export * from "./store/favorites";
+export * from "./store/settings";
 
 // Auto-load on startup
 loadSharedConfig().then(() => {

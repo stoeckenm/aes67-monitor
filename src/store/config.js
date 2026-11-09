@@ -14,23 +14,23 @@ export async function loadSharedConfig() {
 		const config = await window.electronAPI.getSharedConfig();
 		if (!config) return;
 
-		// Merge machine-wide persistent config
+		// The main process already merged this against the defaults, so the
+		// incoming object is authoritative and only needs the local defaults as
+		// a floor for keys an older build might not send. Rebuilding it key by
+		// key here is what dropped the device map and the stream names: devices
+		// became an object, and the old merge tested it with Array.isArray.
+		const incoming = config.persistentData || {};
 		persistentData.value = {
 			...persistentData.value,
+			...incoming,
 			settings: {
 				...persistentData.value.settings,
-				...config.persistentData.settings,
+				...(incoming.settings || {}),
 			},
 			network: {
 				...persistentData.value.network,
-				...config.persistentData.network,
+				...(incoming.network || {}),
 			},
-			devices: Array.isArray(config.persistentData.devices)
-				? config.persistentData.devices
-				: persistentData.value.devices,
-			favorites: Array.isArray(config.persistentData.favorites)
-				? config.persistentData.favorites
-				: persistentData.value.favorites,
 		};
 
 		// Merge user config

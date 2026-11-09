@@ -143,6 +143,9 @@ module.exports.handleIpcMessage = async (message) => {
 						// hash, so trusting its copy here would wipe the password on
 						// every save.
 						passwordHash: persistentData.passwordHash,
+						// Also main-owned: mirrored out of the discovery worker, so a
+						// stale renderer copy must not win.
+						manualStreams: persistentData.manualStreams,
 					};
 					// Never persist renderer-only state
 					delete persistentData.adminMode;

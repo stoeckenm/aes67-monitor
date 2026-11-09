@@ -273,15 +273,54 @@ function createMainWindow() {
 // -----------------------------------------------------
 // Lazy Initialization
 // -----------------------------------------------------
+let manualStreamSignature = null;
+let manualStreamsRestored = false;
+
+// The discovery worker owns the session list, so manual streams are mirrored
+// out of it rather than tracked separately. Previously main hashed their raw
+// SDP on every update and saved persistentData, which never held them at all,
+// so they were lost on restart.
+function syncManualStreams(streams) {
+	// A freshly spawned worker reports an empty list until the stored streams
+	// have been handed back to it. Mirroring that would erase them.
+	if (!manualStreamsRestored) return;
+
+	const manual = streams
+		.filter((s) => s.manual)
+		.map((s) => ({ id: s.id, sdp: s.raw, announce: !!s.announce }));
+
+	const signature = manual
+		.map((s) => `${s.id}:${s.announce ? 1 : 0}`)
+		.join("|");
+	if (signature === manualStreamSignature) return;
+	manualStreamSignature = signature;
+
+	const persistentData = getPersistentData();
+	persistentData.manualStreams = manual;
+	scheduleSavePersistentData();
+}
+
 function onSdpMessage(data) {
 	if (handleWorkerMessage("sdp", data)) return;
 	if (!Array.isArray(data)) return;
 
-	// This used to hash the raw SDP of every manual stream on each update and
-	// then save persistentData, which never contained those streams in the
-	// first place. Manual streams are persisted explicitly instead, by the
-	// handler that adds and removes them.
+	syncManualStreams(data);
 	sendMessage("streams", data);
+}
+
+// Hand the stored manual streams back to a freshly started worker, which
+// starts out knowing nothing.
+function restoreManualStreams() {
+	const { manualStreams } = getPersistentData();
+	if (!Array.isArray(manualStreams) || manualStreams.length === 0) return;
+	for (const stream of manualStreams) {
+		if (!stream?.sdp) continue;
+		sdpProcess?.send({
+			type: "add",
+			data: { sdp: stream.sdp, announce: !!stream.announce },
+		});
+	}
+	console.log(`Restored ${manualStreams.length} manual stream(s)`);
 }
 
 function startSdpWorker() {
@@ -292,9 +331,10 @@ function startSdpWorker() {
 		startSdpWorker,
 	);
 	setWorkers(sdpProcess, audioProcess);
-	// A fresh worker knows nothing, so re-send the interface and timeout it
-	// had before instead of waiting for the next lazy init.
+	// A fresh worker knows nothing, so re-send the interface, the timeout and
+	// the manual streams it had before on the next system pass.
 	isSDPInitialized = false;
+	manualStreamsRestored = false;
 }
 
 function startAudioWorker() {
@@ -360,6 +400,8 @@ function updateSystem({ force = false } = {}) {
 			type: "deleteTimeout",
 			data: persistentData.settings.sdpDeleteTimeout,
 		});
+		restoreManualStreams();
+		manualStreamsRestored = true;
 	}
 
 	// Only push when the list actually changed; this used to fire on every

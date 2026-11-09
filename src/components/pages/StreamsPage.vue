@@ -188,8 +188,10 @@ import {
 	playing,
 	streamIndex,
 	getCurrentSupportedSampleRates,
-	savePersistentConfig,
 	getStreamName,
+	toggleFavorite,
+	isFavorite,
+	favoriteIds,
 } from "../../app.js";
 import { ref, computed } from "vue";
 
@@ -239,66 +241,23 @@ export default {
 			}
 		}
 
-		/* ---------- FAVORITES MANAGEMENT ---------- */
-		if (!persistentData.value.favorites) persistentData.value.favorites = [];
-
-		// Derived from the store rather than copied into a local ref, which had
-		// no watcher and drifted apart from the favorites page.
-		const favorites = computed(() => persistentData.value.favorites || []);
-
-		function toggleFavorite(stream) {
-			const list = persistentData.value.favorites;
-			const index = list.findIndex((s) => s.id === stream.id);
-			if (index === -1) {
-				// Copy rather than storing the live stream object, which would get
-				// an order property written onto it
-				list.push({ ...stream, order: list.length });
-			} else {
-				list.splice(index, 1);
-				list.forEach((f, i) => (f.order = i));
-			}
-			savePersistentConfig();
-		}
-
-		function isFavorite(stream) {
-			return favorites.value.some((s) => s.id === stream.id);
-		}
-
 		/* ---------- COMBINED STREAMS WITH FAVORITE ORDER ---------- */
 		const sortedStreams = computed(() => {
-			// Combine favorites and searchStreams
-			const combined = [...favorites.value, ...filteredStreams.value];
+			// Favorites float to the top; everything else follows the chosen
+			// sort. Only live streams are listed here, so no stream copies are
+			// needed to merge the two.
+			const favorites = favoriteIds.value;
+			return [...filteredStreams.value].sort((a, b) => {
+				const aFav = favorites.has(a.id);
+				const bFav = favorites.has(b.id);
+				if (aFav !== bFav) return aFav ? -1 : 1;
 
-			// Remove duplicates by stream.id, keeping the first occurrence (favorites first)
-			const seen = new Set();
-			const uniqueStreams = combined.filter((s) => {
-				if (seen.has(s.id)) return false;
-				seen.add(s.id);
-				return true;
-			});
-
-			// Sort favorites by 'order' first
-			const favoritesSet = new Set(favorites.value.map((f) => f.id));
-			uniqueStreams.sort((a, b) => {
-				const aFav = favoritesSet.has(a.id);
-				const bFav = favoritesSet.has(b.id);
-
-				if (aFav && bFav) {
-					// Both favorites: sort by order field
-					return (a.order || 0) - (b.order || 0);
-				}
-				if (aFav) return -1; // favorites come first
-				if (bFav) return 1;
-
-				// Non-favorites: sort by dynamic sortKey/Order
 				let A = getSortValue(a, sortKey.value);
 				let B = getSortValue(b, sortKey.value);
 				if (typeof A === "string") A = A.toLowerCase();
 				if (typeof B === "string") B = B.toLowerCase();
 				return A < B ? -1 * sortOrder.value : A > B ? 1 * sortOrder.value : 0;
 			});
-
-			return uniqueStreams;
 		});
 
 		return {

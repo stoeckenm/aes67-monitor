@@ -175,7 +175,8 @@ const deleteStream = function (id) {
 };
 
 const setDeleteTimeout = function (timeout) {
-	deleteTimeout = timeout * 1000;
+	const seconds = Number(timeout);
+	deleteTimeout = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0;
 };
 
 // A busy network announces constantly, and every announcement used to push the
@@ -189,7 +190,10 @@ const flushUpdate = function () {
 	let keys = Object.keys(sessions);
 
 	for (let i = 0; i < keys.length; i++) {
+		// A timeout of 0 means streams are kept until they are announced as
+		// deleted; without this check they would expire immediately.
 		if (
+			deleteTimeout > 0 &&
 			Date.now() - sessions[keys[i]].lastSeen > deleteTimeout &&
 			!sessions[keys[i]].manual
 		) {

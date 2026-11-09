@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const {
 	migrateDevices,
+	migrateFavorites,
 	mergePersistent,
 	mergeUser,
 	forRenderer,
@@ -120,5 +121,111 @@ describe("renderer view of the config", () => {
 		expect(forRenderer({ settings: {}, passwordHash: null }).hasPassword).toBe(
 			false,
 		);
+	});
+});
+
+describe("favorites migration", () => {
+	// Regression: favorites used to be stored as whole stream objects, so the
+	// config grew without bound and a favorite was replayed from the snapshot
+	// taken when it was starred.
+	it("reduces a stored stream object to an id and an order", () => {
+		const { value, changed } = migrateFavorites(
+			[
+				{
+					id: "aaa",
+					order: 0,
+					name: "Stream A",
+					raw: "v=0\r\n...",
+					media: [{ rtp: [{ codec: "L24" }] }],
+					mcast: "239.69.1.1",
+					lastSeen: 1700000000000,
+				},
+			],
+			{},
+		);
+		expect(changed).toBe(true);
+		expect(value).toEqual([{ id: "aaa", order: 0 }]);
+	});
+
+	it("moves a friendly name off the favorite into the shared name map", () => {
+		const { value, names } = migrateFavorites(
+			[{ id: "aaa", order: 0, friendlyName: "Regie 1" }],
+			{},
+		);
+		expect(names).toEqual({ aaa: "Regie 1" });
+		expect(value).toEqual([{ id: "aaa", order: 0 }]);
+	});
+
+	it("does not overwrite a name that is already in the map", () => {
+		const { names } = migrateFavorites(
+			[{ id: "aaa", order: 0, friendlyName: "Alt" }],
+			{ aaa: "Neu" },
+		);
+		expect(names.aaa).toBe("Neu");
+	});
+
+	it("renumbers gaps and keeps the stored order", () => {
+		const { value } = migrateFavorites(
+			[
+				{ id: "c", order: 9 },
+				{ id: "a", order: 2 },
+				{ id: "b", order: 5 },
+			],
+			{},
+		);
+		expect(value).toEqual([
+			{ id: "a", order: 0 },
+			{ id: "b", order: 1 },
+			{ id: "c", order: 2 },
+		]);
+	});
+
+	it("drops entries without an id", () => {
+		const { value, changed } = migrateFavorites(
+			[{ order: 0 }, null, { id: "a", order: 1 }],
+			{},
+		);
+		expect(value).toEqual([{ id: "a", order: 0 }]);
+		expect(changed).toBe(true);
+	});
+
+	it("reports no change for already normalized favorites", () => {
+		const { changed } = migrateFavorites(
+			[
+				{ id: "a", order: 0 },
+				{ id: "b", order: 1 },
+			],
+			{},
+		);
+		expect(changed).toBe(false);
+	});
+});
+
+describe("manual streams", () => {
+	// Regression: manually added streams were never persisted, so they were
+	// gone after every restart.
+	it("keeps stored manual streams through a merge", () => {
+		const { merged } = mergePersistent({
+			devices: {},
+			favorites: [],
+			manualStreams: [{ id: "x", sdp: "v=0\r\n", announce: true }],
+		});
+		expect(merged.manualStreams).toHaveLength(1);
+		expect(merged.manualStreams[0].announce).toBe(true);
+	});
+
+	it("discards entries without SDP", () => {
+		const { merged } = mergePersistent({
+			devices: {},
+			favorites: [],
+			manualStreams: [{ id: "x" }, null, { id: "y", sdp: "v=0\r\n" }],
+		});
+		expect(merged.manualStreams.map((s) => s.id)).toEqual(["y"]);
+	});
+
+	it("defaults to an empty list", () => {
+		expect(
+			mergePersistent({ devices: {}, favorites: [] }).merged.manualStreams,
+		).toEqual([]);
 	});
 });

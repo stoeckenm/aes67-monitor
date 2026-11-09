@@ -19,7 +19,7 @@
 			type="text"
 			class="form-control"
 			id="search-input"
-			@click="$event.target.focus(), $event.target.select()"
+			@click="($event.target.focus(), $event.target.select())"
 			placeholder="Search"
 			v-model="search[page]"
 			v-if="isPageSearchable()"

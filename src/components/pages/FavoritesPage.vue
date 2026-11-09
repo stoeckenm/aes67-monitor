@@ -99,7 +99,7 @@ export default {
 
 		// Reactive local copy for draggable
 		const sortedStreamsLocal = ref(
-			[...persistentData.value.favorites].sort((a, b) => a.order - b.order)
+			[...persistentData.value.favorites].sort((a, b) => a.order - b.order),
 		);
 
 		/* ---------- KEEP LOCAL COPY IN SYNC ---------- */
@@ -107,10 +107,10 @@ export default {
 			() => persistentData.value.favorites,
 			(newFavs) => {
 				sortedStreamsLocal.value = [...newFavs].sort(
-					(a, b) => a.order - b.order
+					(a, b) => a.order - b.order,
 				);
 			},
-			{ deep: true, immediate: true }
+			{ deep: true, immediate: true },
 		);
 
 		/* ---------- SAVE ORDER AFTER DRAG ---------- */
@@ -128,7 +128,7 @@ export default {
 		/* ---------- FAVORITE MANAGEMENT ---------- */
 		function toggleFavorite(stream) {
 			const index = persistentData.value.favorites.findIndex(
-				(s) => s.id === stream.id
+				(s) => s.id === stream.id,
 			);
 			if (index === -1) {
 				// Add new favorite at the end
@@ -140,7 +140,7 @@ export default {
 
 			// Sync local array
 			sortedStreamsLocal.value = [...persistentData.value.favorites].sort(
-				(a, b) => a.order - b.order
+				(a, b) => a.order - b.order,
 			);
 
 			savePersistentConfig();
@@ -150,7 +150,7 @@ export default {
 			if (stream.id === playing.value) stopStream();
 
 			const index = persistentData.value.favorites.findIndex(
-				(s) => s.id === stream.id
+				(s) => s.id === stream.id,
 			);
 			if (index !== -1) {
 				persistentData.value.favorites.splice(index, 1);
@@ -190,7 +190,9 @@ export default {
 
 <style scoped>
 .card {
-	transition: transform 0.15s ease, box-shadow 0.15s ease;
+	transition:
+		transform 0.15s ease,
+		box-shadow 0.15s ease;
 	border-radius: 0.75rem;
 }
 .card:hover {

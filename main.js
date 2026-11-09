@@ -158,7 +158,7 @@ ipcMain.handle("verify-admin-password", async (_event, password) => {
 
 	const { ok, needsRehash } = await verifyPassword(
 		password,
-		persistentData.passwordHash
+		persistentData.passwordHash,
 	);
 	if (ok && needsRehash) {
 		persistentData.passwordHash = await hashPassword(password);
@@ -293,7 +293,7 @@ function startSdpWorker() {
 		"sdp",
 		"./src/lib/sdp.js",
 		onSdpMessage,
-		startSdpWorker
+		startSdpWorker,
 	);
 	setWorkers(sdpProcess, audioProcess);
 	// A fresh worker knows nothing, so re-send the interface and timeout it
@@ -306,7 +306,7 @@ function startAudioWorker() {
 		"audio",
 		"./src/lib/audio.js",
 		(data) => handleWorkerMessage("audio", data),
-		startAudioWorker
+		startAudioWorker,
 	);
 	setWorkers(sdpProcess, audioProcess);
 	// Playback cannot survive a worker restart; let the renderer decide whether
@@ -328,7 +328,7 @@ async function lazyInit() {
 		"audio",
 		"./src/lib/audio.js",
 		(data) => handleWorkerMessage("audio", data),
-		startAudioWorker
+		startAudioWorker,
 	);
 	setWorkers(sdpProcess, audioProcess);
 

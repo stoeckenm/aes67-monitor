@@ -120,6 +120,7 @@ const setNetworkInterface = function (address) {
 		try {
 			socket.addMembership("239.255.255.255", address);
 		} catch (e) {
+			console.error(e);
 			cb("Could not bind to multicast Interface!");
 		}
 
@@ -165,7 +166,7 @@ const deleteStream = function (id) {
 			sessions[id].raw,
 			sessions[id].origin.address,
 			sessions[id].header,
-			true
+			true,
 		);
 	}
 
@@ -193,7 +194,7 @@ const sendUpdate = function () {
 	process.send(
 		Object.keys(sessions).map(function (key) {
 			return sessions[key];
-		})
+		}),
 	);
 };
 
@@ -207,7 +208,7 @@ setInterval(function () {
 				rawSDP,
 				sessions[keys[i]].origin.address,
 				sessions[keys[i]].header,
-				false
+				false,
 			);
 		}
 	}
@@ -221,7 +222,7 @@ process.on("message", (message) => {
 			console.log("Init:", message.data);
 			init(message.data, function (error) {
 				process.send(
-					error ? { type: "error", data: error } : { type: "success" }
+					error ? { type: "error", data: error } : { type: "success" },
 				);
 			});
 			break;

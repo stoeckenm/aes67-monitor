@@ -25,7 +25,6 @@ files:
   - "preload.js" # preload scripts
   - "node_modules/**" # dependencies
   - "src/lib/**" # runtime libraries
-  - "config.json" # default config if needed
   - "icon/**"
   - "backend/**"
 

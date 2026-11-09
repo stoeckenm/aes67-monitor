@@ -159,15 +159,15 @@ const start = function (args) {
 		for (let sample = 0; sample < samplesPerPacket; sample++) {
 			pcmL16out.writeUInt16LE(
 				buffer.readUInt16BE(
-					(sample * channels + ch1Map) * bytesPerSample + headerLength
+					(sample * channels + ch1Map) * bytesPerSample + headerLength,
 				),
-				sample * 4 + bufferIndex
+				sample * 4 + bufferIndex,
 			);
 			pcmL16out.writeUInt16LE(
 				buffer.readUInt16BE(
-					(sample * channels + ch2Map) * bytesPerSample + headerLength
+					(sample * channels + ch2Map) * bytesPerSample + headerLength,
 				),
-				sample * 4 + bufferIndex + 2
+				sample * 4 + bufferIndex + 2,
 			);
 		}
 
@@ -176,7 +176,7 @@ const start = function (args) {
 				let bufferIndex = seqInternal * samplesPerPacket * 4;
 				let outBuf = pcmL16out.subarray(
 					bufferIndex,
-					bufferIndex + samplesPerPacket * 4 * outSampleFactor
+					bufferIndex + samplesPerPacket * 4 * outSampleFactor,
 				);
 				// The output device can disappear mid-stream; an unguarded throw
 				// in this handler would take the whole worker down.
@@ -221,7 +221,7 @@ const start = function (args) {
 		(d) =>
 			d.name == selected.name &&
 			d.inputChannels == selected.inputChannels &&
-			d.outputChannels == selected.outputChannels
+			d.outputChannels == selected.outputChannels,
 	);
 
 	if (device) {
@@ -247,7 +247,7 @@ const start = function (args) {
 			RtAudioFormat.RTAUDIO_SINT16,
 			samplerate,
 			samplesPerPacket * outSampleFactor,
-			"AES67 Monitor"
+			"AES67 Monitor",
 		);
 		rtAudio.start();
 		client.bind(args.port);

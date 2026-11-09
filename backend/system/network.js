@@ -39,7 +39,7 @@ module.exports.updateNetworkInterfaces = () => {
 	}
 
 	const current = network.interfaces.find(
-		(i) => i.address === network.currentInterface
+		(i) => i.address === network.currentInterface,
 	);
 	if (current) {
 		current.isCurrent = true;

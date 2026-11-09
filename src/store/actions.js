@@ -78,7 +78,7 @@ export const getPageTitle = () => {
 export const getDate = (timestamp) => new Date(timestamp).toLocaleString();
 
 // --- Dev Mode ---
-export const isDevMode = () => process.env.NODE_ENV === "development";
+export const isDevMode = () => import.meta.env.DEV;
 
 // --- Sidebar ---
 export const setSidebarStatus = (status) => {
@@ -134,9 +134,11 @@ export const viewDevice = (device) => {
 };
 
 export const getTextareaRowNumber = () => {
-	return selectedStream.value?.raw
-		.split("\n")
-		.filter((line) => line.trim() !== "").length;
+	// The optional chain stopped at .raw, so a stream without raw SDP still
+	// threw on .split
+	const raw = selectedStream.value?.raw;
+	if (!raw) return 1;
+	return raw.split("\n").filter((line) => line.trim() !== "").length;
 };
 
 export const viewStream = (stream) => {

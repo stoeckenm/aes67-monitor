@@ -57,7 +57,7 @@ module.exports.setAudioInterface = (device) => {
 			(d) =>
 				d.name === storedDevice.name &&
 				d.inputChannels === storedDevice.inputChannels &&
-				d.outputChannels === storedDevice.outputChannels
+				d.outputChannels === storedDevice.outputChannels,
 		);
 		if (matchedDevice) {
 			currentAudioDevice = matchedDevice;
@@ -71,7 +71,7 @@ module.exports.setAudioInterface = (device) => {
 			(d) =>
 				d.name === device.name &&
 				d.inputChannels === device.inputChannels &&
-				d.outputChannels === device.outputChannels
+				d.outputChannels === device.outputChannels,
 		);
 		if (matchedDevice) {
 			currentAudioDevice = matchedDevice;
@@ -100,7 +100,7 @@ module.exports.setAudioInterface = (device) => {
 				inputChannels: currentAudioDevice.inputChannels,
 				outputChannels: currentAudioDevice.outputChannels,
 				id: currentAudioDevice.id,
-		  }
+			}
 		: null;
 
 	scheduleSavePersistentData();
@@ -118,8 +118,8 @@ module.exports.restoreAudioInterface = () => {
 					d.inputChannels ===
 						persistentData.settings.audioInterface.inputChannels &&
 					d.outputChannels ===
-						persistentData.settings.audioInterface.outputChannels
-		  )
+						persistentData.settings.audioInterface.outputChannels,
+			)
 		: devices.find((d) => d.isDefaultOutput);
 	if (!savedDevice) savedDevice = devices.find((d) => d.isDefaultOutput);
 	if (savedDevice) module.exports.setAudioInterface(savedDevice);

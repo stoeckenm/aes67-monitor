@@ -111,7 +111,7 @@ export default {
 
 		async function checkPassword() {
 			const result = await window.electronAPI.verifyAdminPassword(
-				password.value
+				password.value,
 			);
 			if (result?.ok) {
 				adminMode.value = true;
@@ -145,7 +145,7 @@ export default {
 
 		// ---------- FAVORITES ----------
 		const favoriteCount = computed(
-			() => persistentData.value.favorites?.length || 0
+			() => persistentData.value.favorites?.length || 0,
 		);
 
 		return {

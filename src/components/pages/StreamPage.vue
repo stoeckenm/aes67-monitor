@@ -17,21 +17,11 @@
 				</li>
 				<li>
 					<b>Address</b><br />
-					<span class="copy">{{ selectedStream.origin.address }}</span>
+					<span class="copy">{{ selectedStream.origin?.address || "-" }}</span>
 				</li>
-				<li
-					v-if="selectedStream.media[0] && selectedStream.media[0].tsRefClocks"
-				>
+				<li v-if="clockSource">
 					<b>Clocksource</b><br />
-					<span class="copy">{{
-						selectedStream.media[0].tsRefClocks[0].clksrcExt.toUpperCase()
-					}}</span>
-				</li>
-				<li v-else-if="selectedStream.tsRefClocks">
-					<b>Clocksource</b><br />
-					<span class="copy">{{
-						selectedStream.tsRefClocks[0].clksrcExt.toUpperCase()
-					}}</span>
+					<span class="copy">{{ clockSource }}</span>
 				</li>
 				<li
 					v-if="
@@ -173,7 +163,7 @@
 	</div>
 </template>
 <script>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import {
 	selectedStream,
 	getStreamName,
@@ -197,9 +187,20 @@ export default {
 			friendlyName.value = getStreamName(newStream);
 		});
 
+		// Either the media level or the session level reference clock, if the
+		// announcement carries one at all.
+		const clockSource = computed(() => {
+			const clocks =
+				selectedStream.value?.media?.[0]?.tsRefClocks ||
+				selectedStream.value?.tsRefClocks;
+			const ext = clocks?.[0]?.clksrcExt;
+			return ext ? String(ext).toUpperCase() : "";
+		});
+
 		return {
 			selectedStream,
 			friendlyName,
+			clockSource,
 			getTextareaRowNumber,
 		};
 	},

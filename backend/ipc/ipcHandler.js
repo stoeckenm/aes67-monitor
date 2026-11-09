@@ -56,7 +56,7 @@ module.exports.handleIpcMessage = async (message) => {
 			if (sendMessageCallback)
 				sendMessageCallback(
 					"updatePersistentData",
-					getPersistentDataForRenderer()
+					getPersistentDataForRenderer(),
 				);
 			// updateSystem (main.js) is called externally after this
 			sdpProcess?.send({ type: "update" });

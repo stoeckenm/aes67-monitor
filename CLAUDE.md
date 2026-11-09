@@ -49,10 +49,10 @@ Initial config snapshot is a separate `invoke` channel: `get-shared-config`.
 
 ## Configuration: two separate stores
 
-| | file | scope |
-|---|---|---|
+|                  | file                                                                                     | scope                                                       |
+| ---------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `persistentData` | Windows `%ProgramData%\StreamMonitor\config.json`, else `/etc/StreamMonitor/config.json` | machine-wide (settings, network, favorites, `passwordHash`) |
-| `userData` | `<appData>/StreamMonitor/user.json` | per-user UI state (window bounds, sidebar, favorites order) |
+| `userData`       | `<appData>/StreamMonitor/user.json`                                                      | per-user UI state (window bounds, sidebar, favorites order) |
 
 Paths and the early `app.setPath("userData", ...)` override live in `backend/config/paths.js`; writes are atomic (tmp + rename) and debounced in `backend/persistence/persistence.js`.
 

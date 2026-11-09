@@ -73,7 +73,7 @@ export function setupConfigWatchers() {
 			clearTimeout(persistTimer);
 			persistTimer = setTimeout(() => savePersistentConfig(), 300);
 		},
-		{ deep: true }
+		{ deep: true },
 	);
 
 	let userTimer;
@@ -84,7 +84,7 @@ export function setupConfigWatchers() {
 			clearTimeout(userTimer);
 			userTimer = setTimeout(() => saveUserConfig(), 300);
 		},
-		{ deep: true }
+		{ deep: true },
 	);
 
 	watch(
@@ -96,6 +96,6 @@ export function setupConfigWatchers() {
 					data: { isPlaying: !!newVal, streamId: newVal || null },
 				});
 			}
-		}
+		},
 	);
 }

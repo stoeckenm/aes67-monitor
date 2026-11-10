@@ -91,6 +91,27 @@ Dafür muss `npm run dev` ebenfalls laufen.
 npm start
 ```
 
+#### Erster Start hinter einem Proxy
+
+Electron 45 hat kein `postinstall`: die Electron-Binary wird erst beim ersten
+`npm start` heruntergeladen, nicht bei `npm install`. `@electron/get` benutzt dafür
+Nodes globales `fetch`, und das ignoriert `HTTP_PROXY`/`HTTPS_PROXY` — hinter einem
+Proxy bricht der erste Start deshalb mit `TypeError: fetch failed` ab.
+
+Abhilfe, einmalig nötig (cmd):
+
+```
+set "ELECTRON_GET_USE_PROXY=true"
+npm start
+```
+
+Der Proxy muss dabei als Umgebungsvariable vorliegen (`HTTPS_PROXY`); eine nur in
+`.npmrc` hinterlegte Proxy-Konfiguration wird nicht gelesen. Verlangt der Proxy
+NTLM/Kerberos, hilft keine Variable — dann die passende
+`electron-v<version>-win32-x64.zip` aus dem GitHub-Release im Browser laden und nach
+`%LOCALAPPDATA%\electron\Cache\<sha256 der Release-URL>\` legen; der nächste
+`npm start` entpackt sie ohne Netzzugriff. `npm run build` ist nicht betroffen.
+
 ### Tests, Lint und Formatierung
 
 ```

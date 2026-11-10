@@ -8,6 +8,7 @@ const {
 	session,
 } = require("electron/main");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { fork } = require("child_process");
 
 // Import refactored modules - calling paths ensures app.setPath is done early
@@ -22,6 +23,7 @@ const {
 	scheduleSavePersistentData,
 } = require("./backend/persistence/persistence");
 const { hashPassword, verifyPassword } = require("./backend/system/password");
+const { isUrlWithinApp } = require("./backend/system/navigation");
 const {
 	initAudio,
 	restoreAudioInterface,
@@ -214,6 +216,42 @@ function getWindowState() {
 	};
 }
 
+// The renderer only ever shows this app's own bundle: the Vite dev server in
+// development, the packaged file:// bundle otherwise. The dev URL lives here so
+// the Vite port in vite.config.mjs has exactly one counterpart in main.
+const DEV_SERVER_URL = "http://localhost:8888";
+
+function isAppUrl(url) {
+	return isUrlWithinApp(url, {
+		packaged: app.isPackaged,
+		devServerUrl: DEV_SERVER_URL,
+		distUrl: pathToFileURL(path.join(__dirname, "dist")).href,
+	});
+}
+
+// The CSP covers script sources. It does not cover navigation, and a stream name
+// reaches the UI straight from a SAP announcement, i.e. from the network, so a
+// crafted announcement must not be able to turn this window into a browser. The
+// app has no external links and opens no windows of its own, so both are denied
+// outright; webviews are refused along with them.
+function applyNavigationGuards(contents) {
+	contents.setWindowOpenHandler(({ url }) => {
+		console.warn(`Blocked a new window for ${url}`);
+		return { action: "deny" };
+	});
+
+	contents.on("will-navigate", (event, url) => {
+		if (isAppUrl(url)) return;
+		event.preventDefault();
+		console.warn(`Blocked a navigation to ${url}`);
+	});
+
+	contents.on("will-attach-webview", (event) => {
+		event.preventDefault();
+		console.warn("Blocked a webview attachment");
+	});
+}
+
 function applyContentSecurityPolicy() {
 	// Only in the packaged app: the dev server needs eval for its sourcemaps
 	// and injects styles inline.
@@ -279,7 +317,7 @@ function createMainWindow() {
 	if (app.isPackaged) {
 		mainWindow.loadFile("./dist/index.html");
 	} else {
-		mainWindow.loadURL("http://localhost:8888");
+		mainWindow.loadURL(DEV_SERVER_URL);
 	}
 
 	mainWindow.once("ready-to-show", () => {
@@ -449,6 +487,9 @@ if (!hasInstanceLock) {
 		await loadPersistentData();
 		await loadUserData();
 		applyContentSecurityPolicy();
+		app.on("web-contents-created", (_event, contents) => {
+			applyNavigationGuards(contents);
+		});
 		createMainWindow();
 		lazyInit();
 		app.on("activate", () => {

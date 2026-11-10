@@ -40,12 +40,19 @@
 		"electron": "^45.2.3",
 		"electron-builder": "^26.18.0",
 		"eslint": "^10.14.0",
-		"eslint-plugin-vue": "^10.12.0",
+		"eslint-plugin-vue": "^10.12.1",
 		"globals": "^17.14.0",
 		"jsdom": "^31.0.0",
 		"prettier": "^3.9.10",
 		"vite": "^8.3.7",
 		"vitest": "^5.1.0"
+	},
+	"overrides": {
+		"cmake-js": {
+			"tar": "^7.5.22"
+		},
+		"minimatch@>=7.0.0 <11.0.1": "^11.0.5",
+		"glob@>=9.0.0 <=14.0.1": "^14.0.4"
 	},
 	"browserslist": [
 		"last 2 Electron versions"

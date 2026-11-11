@@ -105,6 +105,22 @@ export const usePlaybackStore = defineStore("playback", () => {
 		if (stream) play(stream);
 	};
 
+	// The preference is main-owned, so it is asked for rather than written
+	// into the config here: a settings save would race main's own decision.
+	const setPreferredOutputDevice = (device) => {
+		bridge.send({
+			type: "setPreferredAudioInterface",
+			data: device
+				? {
+						name: device.name,
+						inputChannels: device.inputChannels,
+						outputChannels: device.outputChannels,
+					}
+				: null,
+		});
+		if (playingId.value) bridge.send({ type: "restart" });
+	};
+
 	const selectOutputDevice = (device) => {
 		bridge.send({
 			type: "setAudioInterface",
@@ -154,6 +170,7 @@ export const usePlaybackStore = defineStore("playback", () => {
 		stop,
 		resume,
 		selectOutputDevice,
+		setPreferredOutputDevice,
 		watchDiscovery,
 	};
 });

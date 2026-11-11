@@ -19,52 +19,18 @@
 		<section v-if="active === 'playback'" class="settings-panel">
 			<fieldset class="settings-group">
 				<legend class="settings-legend">
-					{{ t("settings.playback.output") }}
+					{{ t("audio.title") }}
 				</legend>
-
-				<div class="form-check mb-3">
-					<input
-						id="follow-system"
-						v-model="followSystem"
-						class="form-check-input"
-						type="checkbox"
-					/>
-					<label class="form-check-label" for="follow-system">
-						{{ t("settings.playback.followSystem") }}
-					</label>
-					<div class="form-text">
-						{{ t("settings.playback.followSystemHint") }}
-					</div>
+				<div class="form-text mb-2">
+					{{ t("settings.playback.deviceLink") }}
 				</div>
-
-				<p v-if="discovery.outputDevices.length === 0" class="text-muted">
-					{{ t("settings.playback.noDevice") }}
-				</p>
-
-				<ul v-else class="device-list">
-					<li v-for="device in discovery.outputDevices" :key="device.name">
-						<label class="device-option">
-							<input
-								type="radio"
-								name="output-device"
-								class="form-check-input"
-								:disabled="followSystem"
-								:checked="device.isCurrent"
-								@change="playback.selectOutputDevice(device)"
-							/>
-							<span class="device-name">{{ device.name }}</span>
-							<span v-if="device.isCurrent" class="badge text-bg-success">
-								{{ t("settings.playback.current") }}
-							</span>
-							<span
-								v-if="device.isDefaultOutput"
-								class="badge text-bg-secondary"
-							>
-								{{ t("settings.playback.systemDefault") }}
-							</span>
-						</label>
-					</li>
-				</ul>
+				<button
+					type="button"
+					class="btn btn-sm btn-outline-secondary"
+					@click="session.setPage('audio')"
+				>
+					{{ t("settings.playback.goDevices") }}
+				</button>
 			</fieldset>
 
 			<fieldset class="settings-group">
@@ -224,9 +190,9 @@
 // "Audio"/"Netzwerk" split left unexplained.
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useSessionStore } from "../stores/session";
 import { useConfigStore } from "../stores/config";
 import { useDiscoveryStore } from "../stores/discovery";
-import { usePlaybackStore } from "../stores/playback";
 import { bridge } from "../ipc/bridge";
 import {
 	bufferLevelOf,
@@ -236,9 +202,9 @@ import {
 } from "../config/presets";
 
 const { t } = useI18n();
+const session = useSessionStore();
 const config = useConfigStore();
 const discovery = useDiscoveryStore();
-const playback = usePlaybackStore();
 
 const tabs = ["playback", "network", "access"];
 // Persisted, so the page does not forget which tab was open on every
@@ -246,15 +212,6 @@ const tabs = ["playback", "network", "access"];
 const active = computed(() => {
 	const stored = config.user.settings.settingsTab;
 	return tabs.includes(stored) ? stored : "playback";
-});
-
-const followSystem = computed({
-	get: () => config.settings.followSystemAudio,
-	set: (value) => {
-		config.settings.followSystemAudio = value;
-		// Re-resolve the device immediately rather than at the next poll
-		playback.selectOutputDevice(value ? null : discovery.currentOutput || null);
-	},
 });
 
 // Named levels on top of the stored bufferEnabled/bufferSize pair, so the

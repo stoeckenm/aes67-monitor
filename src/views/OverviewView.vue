@@ -116,6 +116,14 @@
 					</template>
 					<template v-else-if="discovery.currentOutput">
 						{{ discovery.currentOutput.name }}
+						<!-- A preferred device that is unplugged is worth seeing here:
+						playback works, but not on the device that was asked for. -->
+						<span
+							v-if="discovery.audioSelection?.reason === 'fallback'"
+							class="badge text-bg-warning ms-1"
+						>
+							{{ t("overview.outputPreferredAway") }}
+						</span>
 					</template>
 					<span v-else class="text-muted">{{ t("overview.outputNone") }}</span>
 				</dd>

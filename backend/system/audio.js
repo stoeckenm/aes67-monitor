@@ -4,11 +4,18 @@ const {
 	getPersistentData,
 	scheduleSavePersistentData,
 } = require("../persistence/persistence");
+const {
+	sameDevice,
+	resolveOutput,
+	listForRenderer,
+} = require("./audioSelection");
 
 let rtAudio = null;
 let audioAPI = RtAudioApi.UNSPECIFIED;
 let currentAudioDevice = null;
 let previousAudioDevice = null;
+let requestedAudioDevice = null;
+let selectionReason = "none";
 let restartStreamCallback = null;
 let sendMessageCallback = null;
 
@@ -20,6 +27,7 @@ let deviceCache = null;
 let deviceCacheTime = 0;
 const DEVICE_CACHE_MS = 2000;
 let lastDeviceSignature = "";
+let lastReasonSignature = "";
 
 function getDevices({ force = false } = {}) {
 	if (!rtAudio) return [];
@@ -63,17 +71,6 @@ module.exports.initAudio = (sendMessage, restartStream) => {
 	module.exports.audioAPI = audioAPI; // Export for use in ipcHandler
 };
 
-// Matching is by name plus channel counts, never by id: RtAudio ids shift when
-// devices come and go.
-function sameDevice(a, b) {
-	if (!a || !b) return false;
-	return (
-		a.name === b.name &&
-		a.inputChannels === b.inputChannels &&
-		a.outputChannels === b.outputChannels
-	);
-}
-
 function identify(device) {
 	if (!device) return null;
 	return {
@@ -86,11 +83,13 @@ function identify(device) {
 
 // Only push to the renderer when the list or the selection actually changed;
 // this used to fire every two seconds regardless.
-function publishAudioInterfaces(devices) {
+function publishAudioInterfaces(devices, pinned) {
 	if (!sendMessageCallback) return;
-	const usable = devices
-		.filter((d) => d.inputChannels > 0 || d.outputChannels > 0)
-		.map((d) => ({ ...d, isCurrent: sameDevice(d, currentAudioDevice) }));
+	const usable = listForRenderer({
+		devices,
+		pinned,
+		current: currentAudioDevice,
+	});
 
 	const signature = JSON.stringify(
 		usable.map((d) => [
@@ -100,11 +99,26 @@ function publishAudioInterfaces(devices) {
 			d.isDefaultOutput,
 			d.isDefaultInput,
 			d.isCurrent,
+			d.isPinned,
+			d.absent,
 		]),
 	);
-	if (signature === lastDeviceSignature) return;
-	lastDeviceSignature = signature;
-	sendMessageCallback("audioDevices", usable);
+	if (signature !== lastDeviceSignature) {
+		lastDeviceSignature = signature;
+		sendMessageCallback("audioDevices", usable);
+	}
+
+	// Why that device is in use is decided here and only here. The renderer
+	// states it in words rather than deriving the precedence a second time,
+	// which is how the two would drift apart.
+	const reasonSignature = `${selectionReason}|${currentAudioDevice?.name || ""}`;
+	if (reasonSignature !== lastReasonSignature) {
+		lastReasonSignature = reasonSignature;
+		sendMessageCallback("audioSelection", {
+			reason: selectionReason,
+			name: currentAudioDevice?.name || "",
+		});
+	}
 }
 
 module.exports.setAudioInterface = (device, { force = false } = {}) => {
@@ -113,22 +127,22 @@ module.exports.setAudioInterface = (device, { force = false } = {}) => {
 	const devices = getDevices({ force });
 	if (devices.length === 0) return;
 
-	const defaultDevice = devices.find((d) => d.isDefaultOutput);
-	const storedDevice = persistentData.settings.storedAudioInterface;
-	const followSystem = persistentData.settings.followSystemAudio;
-	let selected = null;
+	// Any device handed in here is a deliberate choice: the system loop calls
+	// refreshCurrentAudioInterface() with null. Remembering it is what lets an
+	// unplugged pin fall back to this choice instead of to the system default.
+	if (device) requestedAudioDevice = identify(device);
 
-	if (!followSystem) {
-		// A pinned device wins over whatever was passed in
-		selected =
-			devices.find((d) => sameDevice(d, storedDevice)) ||
-			devices.find((d) => sameDevice(d, device)) ||
-			null;
-	}
-	if (!selected) selected = defaultDevice || null;
+	const pinned = persistentData.settings.storedAudioInterface;
+	const { device: selected, reason } = resolveOutput({
+		devices,
+		pinned,
+		requested: requestedAudioDevice,
+		followSystem: persistentData.settings.followSystemAudio,
+	});
 
 	const changed = !sameDevice(selected, previousAudioDevice);
 	currentAudioDevice = selected;
+	selectionReason = reason;
 
 	if (previousAudioDevice && changed && restartStreamCallback) {
 		restartStreamCallback();
@@ -144,7 +158,25 @@ module.exports.setAudioInterface = (device, { force = false } = {}) => {
 		scheduleSavePersistentData();
 	}
 
-	publishAudioInterfaces(devices);
+	publishAudioInterfaces(devices, pinned);
+};
+
+// The preference is main-owned, like the network selection: the renderer asks
+// for a change and reads the result back from the pushed config. Writing it
+// through the ordinary settings save would race the 300 ms debounce, so the
+// device switch would happen before main knew about the new pin.
+module.exports.setPreferredAudioInterface = (device) => {
+	const persistentData = getPersistentData();
+	const pinned = identify(device);
+	persistentData.settings.storedAudioInterface = pinned;
+	// Pinning a device and following the system default are contradictory
+	// wishes, and following the system silently wins. Choosing a device is the
+	// more specific instruction, so it turns the other one off.
+	if (pinned) persistentData.settings.followSystemAudio = false;
+	scheduleSavePersistentData();
+	module.exports.setAudioInterface(device || currentAudioDevice, {
+		force: true,
+	});
 };
 
 module.exports.restoreAudioInterface = () => {
@@ -152,6 +184,9 @@ module.exports.restoreAudioInterface = () => {
 	const devices = getDevices({ force: true });
 	const persistentData = getPersistentData();
 	const saved = persistentData.settings.audioInterface;
+	// The saved device is the manual choice to restore. The pin, if any, wins
+	// over it inside setAudioInterface.
+	requestedAudioDevice = saved || null;
 	const savedDevice =
 		(saved && devices.find((d) => sameDevice(d, saved))) ||
 		devices.find((d) => d.isDefaultOutput);
@@ -159,6 +194,7 @@ module.exports.restoreAudioInterface = () => {
 };
 
 module.exports.refreshCurrentAudioInterface = (options) =>
-	module.exports.setAudioInterface(currentAudioDevice, options);
+	module.exports.setAudioInterface(null, options);
 
 module.exports.getCurrentAudioDevice = () => currentAudioDevice;
+module.exports.getSelectionReason = () => selectionReason;

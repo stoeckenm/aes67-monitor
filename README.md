@@ -13,7 +13,7 @@ AES67 Stream Monitor ist eine plattformübergreifende Audio-over-IP-Monitoring-A
 - **Konfigurierbare Systemschnittstellen:**
   - **Netzwerk:** Konfigurierbare Netzwerkschnittstellen für Stream-Empfang und SAP-Erkennung.
   - **Audio:** Auswahl spezifischer Audio-Schnittstellen und Konfiguration der **RTP-Pufferung** (Jitter Buffer), um die Stabilität bei Netzwerkproblemen zu erhöhen.
-- **Folge System-Audio:** Möglichkeit, eine spezifische Audio-Ausgabe festzulegen oder der System-Audioausgabe zu folgen.
+- **Audiogeräte mit bevorzugtem Gerät:** Eine eigene Seite listet die Ausgabegeräte mit Kanälen und Sampleraten. Ein Gerät kann als **bevorzugt** markiert werden: es wird benutzt, sobald es angeschlossen ist — auch nach einem Neustart. Fehlt es, läuft die Ausgabe über das Ersatzgerät weiter und übernimmt von selbst wieder, sobald das Gerät zurück ist. Alternativ folgt der Monitor der System-Audioausgabe; die Seite sagt immer, welches Gerät aus welchem Grund aktiv ist.
 - **Admin Mode:** Optionale Ausblendung aller Einstellungen, wenn der Admin-Modus deaktiviert ist.
 - **Kanal-Verwaltung:** Eine eigene Adminseite zum Einrichten der Kanäle, die Bediener sehen: Anzeigename, Quelle, Kanalzuordnung und Reihenfolge an einer Stelle, mit Vorschau der Bedienansicht.
 - **Datenpersistenz:** Getrennte Speicherung von **maschinenspezifischen Einstellungen** (`persistentData`) und **benutzerspezifischen UI-Einstellungen** (`userData`).

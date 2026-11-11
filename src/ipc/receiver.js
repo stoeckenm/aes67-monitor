@@ -24,6 +24,11 @@ export const startReceiver = () => {
 			case "audioDevices":
 				discovery.audioDevices = message.data;
 				break;
+			// Which device is in use and why is decided in main; the renderer only
+			// states it in words.
+			case "audioSelection":
+				discovery.audioSelection = message.data;
+				break;
 			case "updatePersistentData":
 				config.applyFromMain(message.data);
 				break;

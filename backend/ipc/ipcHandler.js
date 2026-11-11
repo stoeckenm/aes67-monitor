@@ -10,6 +10,7 @@ const {
 } = require("../persistence/persistence");
 const {
 	setAudioInterface,
+	setPreferredAudioInterface,
 	refreshCurrentAudioInterface,
 	getCurrentAudioDevice,
 } = require("../system/audio");
@@ -64,6 +65,20 @@ module.exports.handleIpcMessage = async (message) => {
 
 		case "setAudioInterface":
 			setAudioInterface(message.data);
+			break;
+
+		// The preferred device is main-owned, so the renderer asks rather than
+		// writing it through the settings save, which would race the 300 ms
+		// debounce. Pinning also clears followSystemAudio, and that one IS
+		// renderer-owned, so the renderer has to learn about it before its own
+		// next save pushes the old value back.
+		case "setPreferredAudioInterface":
+			setPreferredAudioInterface(message.data);
+			if (sendMessageCallback)
+				sendMessageCallback(
+					"updatePersistentData",
+					getPersistentDataForRenderer(),
+				);
 			break;
 
 		case "restart":
@@ -122,6 +137,14 @@ module.exports.handleIpcMessage = async (message) => {
 						settings: {
 							...persistentDataDefaults.settings,
 							...(parsed.settings || {}),
+							// Main-owned, for the same reason as `network` below: the
+							// active device is resolved from the OS on a timer and the
+							// preference changes through setPreferredAudioInterface. A
+							// stale renderer copy would revert either of them, which is
+							// how a pinned device would quietly lose its pin.
+							audioInterface: persistentData.settings.audioInterface,
+							storedAudioInterface:
+								persistentData.settings.storedAudioInterface,
 						},
 						// Also main-owned: the interface list is re-derived from the
 						// OS on a timer, and the selection changes via "setNetwork".

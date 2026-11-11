@@ -91,13 +91,14 @@ describe("admin shell", () => {
 		expect(wrapper.find(".admin-nav").exists()).toBe(true);
 		expect(wrapper.find(".operator").exists()).toBe(false);
 		const labels = wrapper.findAll(".admin-menu-item").map((b) => b.text());
-		expect(labels).toHaveLength(5);
+		expect(labels).toHaveLength(6);
 		const joined = labels.join(" ");
 		for (const label of [
 			"Übersicht",
 			"Kanäle",
 			"Streams",
 			"Sender",
+			"Audiogeräte",
 			"Einstellungen",
 		]) {
 			expect(joined).toContain(label);
@@ -297,5 +298,108 @@ describe("admin information architecture", () => {
 
 		await wrapper.find(".admin-header .btn-outline-secondary").trigger("click");
 		expect(session.page).toBe("senders");
+	});
+});
+
+describe("the preferred audio device", () => {
+	const dev = (name, extra = {}) => ({
+		name,
+		inputChannels: 0,
+		outputChannels: 2,
+		sampleRates: [48000, 96000],
+		isDefaultOutput: false,
+		isCurrent: false,
+		isPinned: false,
+		absent: false,
+		...extra,
+	});
+
+	const audioPage = async (devices, selection, overrides = {}) => {
+		window.electronAPI.getSharedConfig = vi.fn(async () =>
+			sharedConfig(overrides),
+		);
+		const wrapper = await mountApp();
+		const session = useSessionStore();
+		const discovery = useDiscoveryStore();
+		discovery.audioDevices = devices;
+		discovery.audioSelection = selection;
+		session.unlock();
+		session.setPage("audio");
+		await wrapper.vm.$nextTick();
+		return wrapper;
+	};
+
+	it("states which device is in use and why", async () => {
+		const wrapper = await audioPage(
+			[
+				dev("Speakers", { isDefaultOutput: true }),
+				dev("USB Headset", { isCurrent: true, isPinned: true }),
+			],
+			{ reason: "pinned", name: "USB Headset" },
+			{ settings: { followSystemAudio: false } },
+		);
+		expect(wrapper.text()).toContain(
+			"Bevorzugtes Gerät ist aktiv: USB Headset",
+		);
+	});
+
+	// The whole point of the preference: unplug the headset, playback keeps
+	// going, and the page says it will come back on its own.
+	it("keeps an unplugged preferred device listed and explains the fallback", async () => {
+		const wrapper = await audioPage(
+			[
+				dev("Speakers", { isDefaultOutput: true, isCurrent: true }),
+				dev("USB Headset", { isPinned: true, absent: true, sampleRates: [] }),
+			],
+			{ reason: "fallback", name: "Speakers" },
+			{ settings: { followSystemAudio: false } },
+		);
+
+		expect(wrapper.text()).toContain("USB Headset");
+		expect(wrapper.text()).toContain("Nicht angeschlossen");
+		expect(wrapper.text()).toContain("übernimmt es von selbst");
+	});
+
+	// Said out loud rather than silently ignored, which is what made the old
+	// device list look broken.
+	it("marks a preference that following the system overrides", async () => {
+		const wrapper = await audioPage(
+			[
+				dev("Speakers", { isDefaultOutput: true, isCurrent: true }),
+				dev("USB Headset", { isPinned: true }),
+			],
+			{ reason: "system", name: "Speakers" },
+			{ settings: { followSystemAudio: true } },
+		);
+		expect(wrapper.text()).toContain("ohne Wirkung");
+	});
+
+	it("asks main to set and clear the preference", async () => {
+		const wrapper = await audioPage(
+			[dev("Speakers", { isDefaultOutput: true, isCurrent: true })],
+			{ reason: "default", name: "Speakers" },
+			{ settings: { followSystemAudio: false } },
+		);
+
+		await wrapper.find(".btn-outline-warning").trigger("click");
+		const asked = sent.filter((m) => m.type === "setPreferredAudioInterface");
+		expect(asked).toHaveLength(1);
+		expect(asked[0].data).toEqual({
+			name: "Speakers",
+			inputChannels: 0,
+			outputChannels: 2,
+		});
+	});
+
+	it("moved out of the settings page, which points at it", async () => {
+		const wrapper = await mountApp();
+		const session = useSessionStore();
+		session.unlock();
+		session.setPage("settings");
+		await wrapper.vm.$nextTick();
+
+		expect(wrapper.text()).toContain("Audiogeräte");
+		// The radio list of devices is no longer here
+		expect(wrapper.find("input[name='output-device']").exists()).toBe(false);
 	});
 });

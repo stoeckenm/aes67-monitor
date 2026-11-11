@@ -61,7 +61,7 @@ Request/response goes through `invoke`: `get-shared-config`, `verify-admin-passw
 `src/App.vue` picks a whole layout, it does not hide pieces of one:
 
 - `layouts/OperatorLayout.vue` → only `views/ChannelsView.vue` (large tiles, play/stop, offline state) plus the lock button. No navigation, no multicast addresses, no codecs.
-- `layouts/AdminLayout.vue` → sidebar navigation and the technical views: **Übersicht** (`OverviewView`), **Kanäle** (`ChannelsAdminView`), **Streams** (`StreamsView`), **Sender** (`SendersView`), **Einstellungen** (`SettingsView`), plus the `stream` and `sdp` detail pages.
+- `layouts/AdminLayout.vue` → sidebar navigation and the technical views: **Übersicht** (`OverviewView`), **Kanäle** (`ChannelsAdminView`), **Streams** (`StreamsView`), **Sender** (`SendersView`), **Audiogeräte** (`AudioDevicesView`), **Einstellungen** (`SettingsView`), plus the `stream` and `sdp` detail pages.
 
 `ChannelsView.vue` is the operator's screen and takes no part in configuring anything. The admin side mounts it a second time as a read-only preview with `editable` set, which only enables dragging. It used to branch on `adminMode` in four places and serve both audiences at once.
 
@@ -79,7 +79,7 @@ The password is verified in the main process (`backend/system/password.js`, scry
 | ----------- | ---------------------------------------------------------------------------------------------- |
 | `session`   | `adminMode`, current and previous page, search term, `senderFilter`, `selectedStreamId`, error |
 | `config`    | `persistent` and `user` config, debounced saves, friendly names, sender names, settings tab    |
-| `discovery` | live streams, interfaces, audio devices, filtering, `senders`, overview tallies                |
+| `discovery` | live streams, interfaces, audio devices, `audioSelection`, filtering, `senders`, tallies       |
 | `channels`  | channel references, resolved against discovery, order                                          |
 | `playback`  | what is playing, channel/media selection, play/stop                                            |
 
@@ -102,7 +102,7 @@ Three invariants worth knowing:
 
 Defaults are **duplicated** in `backend/config/defaults.js` and in `stores/config.js` — change both. Pure merge and migration logic is in `backend/persistence/migrate.js` (no electron import, so it is unit tested).
 
-**Main-owned keys** that `savePersistent` deliberately ignores from the renderer: `passwordHash`, `network`, `manualStreams`. Trusting the renderer's copy of these wipes or reverts them.
+**Main-owned keys** that `savePersistent` deliberately ignores from the renderer: `passwordHash`, `network`, `manualStreams`, and inside `settings` both `audioInterface` and `storedAudioInterface`. Trusting the renderer's copy of these wipes or reverts them — for the two audio keys that means a pinned device quietly losing its pin, because main resolves the active device on a timer while the renderer holds a snapshot.
 
 Migrations run once on load and back up the previous file to `config.json.bak`: `devices` array → map keyed by IP, favorites → `{ id, order }` references with any `friendlyName` moved into `streamNames`.
 
@@ -127,6 +127,10 @@ A `sdpDeleteTimeout` of `0` means "keep until announced as deleted"; the worker 
 - `outSampleFactor` is raised until at least 48 samples are written per call, and raises the jitter buffer with it. Short `ptime` (0.125 ms) streams depend on this.
 - `resolveFormat()` validates samplerate, channels and `ptime` up front. A missing `a=ptime` is legal and defaults to 1 ms; a `samplesPerPacket` of 0 would spin the `outSampleFactor` loop forever.
 - Device selection matches on **name + inputChannels + outputChannels**, never on `id` (RtAudio ids are not stable). RtAudio is instantiated twice: `backend/system/audio.js` enumerates (cached, published only on change), `src/lib/audio.js` plays.
+- **Which output device is in effect is decided in exactly one place**, the pure `backend/system/audioSelection.js` (`resolveOutput`), and the precedence is: `followSystemAudio` → the system default; otherwise the **preferred device** (`settings.storedAudioInterface`) whenever it is present; otherwise the last device asked for by hand; otherwise the system default. That is what makes a USB headset take over again by itself when it is plugged back in — `updateSystem` re-resolves every 5 s, and the match on name plus channel counts survives the id changing.
+- The same module's `listForRenderer` keeps a **preferred device that is unplugged in the published list**, flagged `absent`. It is the only place the preference can be seen and removed, and the operator needs to notice that the device is gone.
+- `setAudioInterface` carries the reason for its answer (`system`, `pinned`, `fallback`, `manual`, `default`, `none`) and publishes it as `audioSelection`. The renderer puts words to it in `src/utils/audioStatus.js` and never re-derives the precedence; that is how the page and the behaviour would drift apart. A selection that cannot take effect is stated as such rather than silently ignored — the old device list looked broken because a pinned device overrode every click without saying so.
+- Pinning a device clears `followSystemAudio`: the two are contradictory wishes and following the system won silently. The preference is main-owned and set through `setPreferredAudioInterface`, not through the settings save, which would race the renderer's 300 ms debounce.
 - There is no backpressure control: audify exposes no queue depth, and `getStreamLatency()` is the device's fixed latency. One output packet is written per input packet, so the sender paces playback; clock drift would need resampling.
 
 ## SAP/SDP (`src/lib/sdp.js`, `src/lib/sdpParse.js`)
@@ -142,7 +146,7 @@ A `sdpDeleteTimeout` of `0` means "keep until announced as deleted"; the worker 
 
 Vitest, `tests/`. Node environment by default; component tests opt into jsdom with `// @vitest-environment jsdom`. No E2E — Electron plus the native `audify` binding in CI is not worth it.
 
-Coverage is deliberately on the pure logic and the regressions: SDP support gating, the password module, config merges and migrations, the settings presets, channel resolution and ordering, the navigation guard predicate, the search and sender-filter lifetime in `session`, the relative-time label, locale key parity, and a mount smoke test per shell (including that a stream name containing markup is escaped, and that the admin pages keep playback configuration out of the streams table).
+Coverage is deliberately on the pure logic and the regressions: SDP support gating, the password module, config merges and migrations, the settings presets, channel resolution and ordering, the navigation guard predicate, the output-device precedence and its labels, the search and sender-filter lifetime in `session`, the relative-time label, locale key parity, and a mount smoke test per shell (including that a stream name containing markup is escaped, and that the admin pages keep playback configuration out of the streams table).
 
 **Audio playback and SAP discovery cannot be verified in CI or on a dev machine without AES67 traffic.** Verify against hardware or GStreamer streams per the README matrix and [philhartung/aoip-tester](https://github.com/philhartung/aoip-tester).
 

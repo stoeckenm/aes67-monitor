@@ -85,6 +85,7 @@ import ChannelsAdminView from "../views/ChannelsAdminView.vue";
 import StreamsView from "../views/StreamsView.vue";
 import StreamDetailView from "../views/StreamDetailView.vue";
 import SendersView from "../views/SendersView.vue";
+import AudioDevicesView from "../views/AudioDevicesView.vue";
 import SettingsView from "../views/SettingsView.vue";
 import AddStreamView from "../views/AddStreamView.vue";
 import { useSessionStore } from "../stores/session";
@@ -123,6 +124,7 @@ const menu = computed(() => [
 		icon: "bi-hdd-network",
 		badge: discovery.senders.length,
 	},
+	{ page: "audio", label: "nav.audio", icon: "bi-volume-up" },
 	{ page: "settings", label: "nav.settings", icon: "bi-gear" },
 ]);
 
@@ -132,6 +134,7 @@ const views = {
 	streams: StreamsView,
 	stream: StreamDetailView,
 	senders: SendersView,
+	audio: AudioDevicesView,
 	settings: SettingsView,
 	sdp: AddStreamView,
 };
@@ -143,6 +146,7 @@ const titles = {
 	channels: "channels.admin.title",
 	streams: "streams.title",
 	senders: "senders.title",
+	audio: "audio.title",
 	settings: "settings.title",
 	sdp: "sdp.title",
 };

@@ -11,6 +11,8 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 	const streams = ref([]);
 	const networkInterfaces = ref([]);
 	const audioDevices = ref([]);
+	// What main resolved and why: { reason, name }. Never recomputed here.
+	const audioSelection = ref({ reason: "none", name: "" });
 	// When the last announcement batch arrived. The overview needs an answer to
 	// "is discovery hearing anything at all", which a stream count alone does
 	// not give: a stale list and a live one look identical.
@@ -50,12 +52,18 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 		return config.nameOf(stream.id) || stream.name || "-";
 	};
 
+	// A preferred device that is unplugged stays in the list: it is the only
+	// place the preference can be seen and removed.
 	const outputDevices = computed(() =>
-		audioDevices.value.filter((d) => d.outputChannels > 0),
+		audioDevices.value.filter((d) => d.outputChannels > 0 || d.absent),
+	);
+
+	const preferredDevice = computed(
+		() => audioDevices.value.find((d) => d.isPinned) || null,
 	);
 
 	const currentOutput = computed(
-		() => outputDevices.value.find((d) => d.isCurrent) || null,
+		() => outputDevices.value.find((d) => d.isCurrent && !d.absent) || null,
 	);
 
 	const supportedSampleRates = computed(
@@ -149,6 +157,8 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 		streams,
 		networkInterfaces,
 		audioDevices,
+		audioSelection,
+		preferredDevice,
 		lastUpdate,
 		applyStreams,
 		streamById,

@@ -92,6 +92,7 @@
 		"listen": "Abhören",
 		"stop": "Stopp",
 		"playing": "Läuft",
+		"ready": "Bereit",
 		"unsupportedFormat": "Format wird vom Ausgabegerät nicht unterstützt",
 		"admin": {
 			"title": "Kanäle einrichten",
@@ -206,7 +207,16 @@
 		"tabs": {
 			"playback": "Wiedergabe",
 			"network": "Netzwerk",
+			"appearance": "Darstellung",
 			"access": "Zugang"
+		},
+		"appearance": {
+			"theme": "Farbschema",
+			"themeHint": "Dunkel ist in abgedunkelten Regien angenehmer, hell bei Tageslicht besser lesbar.",
+			"system": "Wie das Betriebssystem",
+			"light": "Hell",
+			"dark": "Dunkel",
+			"perUser": "Diese Einstellung gilt nur für diesen Benutzer, nicht für den ganzen Rechner."
 		},
 		"playback": {
 			"deviceLink": "Wiedergabegerät und bevorzugtes Gerät stehen unter Audiogeräte.",

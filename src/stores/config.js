@@ -34,6 +34,8 @@ const userDefaults = () => ({
 		// Which settings tab was last open. A local ref reset it on every
 		// navigation, which made the page feel like it forgot where you were.
 		settingsTab: "playback",
+		// "system" | "light" | "dark"
+		theme: "system",
 	},
 });
 
@@ -129,6 +131,10 @@ export const useConfigStore = defineStore("config", () => {
 		user.value.settings.settingsTab = tab;
 	};
 
+	const setTheme = (theme) => {
+		user.value.settings.theme = theme;
+	};
+
 	// Friendly names live in a map keyed by stream id, not on the stream
 	// objects, which discovery replaces wholesale on every update.
 	const nameOf = (streamId) => persistent.value.streamNames?.[streamId] || "";
@@ -162,6 +168,7 @@ export const useConfigStore = defineStore("config", () => {
 		saveUser,
 		setSidebarCollapsed,
 		setSettingsTab,
+		setTheme,
 		nameOf,
 		setName,
 		deviceInfo,

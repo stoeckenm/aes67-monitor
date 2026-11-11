@@ -127,6 +127,40 @@
 			</fieldset>
 		</section>
 
+		<!-- APPEARANCE: the only tab that is per user, not machine-wide -->
+		<section v-if="active === 'appearance'" class="settings-panel">
+			<fieldset class="settings-group">
+				<legend class="settings-legend">
+					{{ t("settings.appearance.theme") }}
+				</legend>
+				<div class="form-text mb-2">
+					{{ t("settings.appearance.themeHint") }}
+				</div>
+
+				<div
+					class="btn-group"
+					role="group"
+					:aria-label="t('settings.appearance.theme')"
+				>
+					<button
+						v-for="choice in themeChoices"
+						:key="choice"
+						type="button"
+						class="btn"
+						:class="theme === choice ? 'btn-primary' : 'btn-outline-secondary'"
+						:aria-pressed="theme === choice"
+						@click="config.setTheme(choice)"
+					>
+						{{ t(`settings.appearance.${choice}`) }}
+					</button>
+				</div>
+
+				<div class="form-text mt-2">
+					{{ t("settings.appearance.perUser") }}
+				</div>
+			</fieldset>
+		</section>
+
 		<!-- ACCESS -->
 		<section v-if="active === 'access'" class="settings-panel">
 			<fieldset class="settings-group">
@@ -194,6 +228,7 @@ import { useSessionStore } from "../stores/session";
 import { useConfigStore } from "../stores/config";
 import { useDiscoveryStore } from "../stores/discovery";
 import { bridge } from "../ipc/bridge";
+import { THEME_CHOICES } from "../utils/theme";
 import {
 	bufferLevelOf,
 	applyBufferLevel,
@@ -206,7 +241,7 @@ const session = useSessionStore();
 const config = useConfigStore();
 const discovery = useDiscoveryStore();
 
-const tabs = ["playback", "network", "access"];
+const tabs = ["playback", "network", "appearance", "access"];
 // Persisted, so the page does not forget which tab was open on every
 // navigation away and back.
 const active = computed(() => {
@@ -230,6 +265,9 @@ const bufferSize = computed({
 		config.settings.bufferSize = Math.min(512, Math.round(size));
 	},
 });
+
+const themeChoices = THEME_CHOICES;
+const theme = computed(() => config.user.settings.theme || "system");
 
 const timeoutChoices = ["short", "default", "never", "custom"];
 const timeout = computed({

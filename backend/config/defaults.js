@@ -30,5 +30,7 @@ module.exports.userDataDefaults = {
 		favoritesOrder: [],
 		// Which settings tab was last open
 		settingsTab: "playback",
+		// "system" | "light" | "dark"
+		theme: "system",
 	},
 };

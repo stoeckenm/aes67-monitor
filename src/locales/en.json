@@ -92,6 +92,7 @@
 		"listen": "Listen",
 		"stop": "Stop",
 		"playing": "Playing",
+		"ready": "Ready",
 		"unsupportedFormat": "Format not supported by the output device",
 		"admin": {
 			"title": "Set up channels",
@@ -206,7 +207,16 @@
 		"tabs": {
 			"playback": "Playback",
 			"network": "Network",
+			"appearance": "Appearance",
 			"access": "Access"
+		},
+		"appearance": {
+			"theme": "Colour scheme",
+			"themeHint": "Dark is easier on the eyes in a darkened control room, light reads better in daylight.",
+			"system": "Same as the operating system",
+			"light": "Light",
+			"dark": "Dark",
+			"perUser": "This setting applies to this user only, not to the whole machine."
 		},
 		"playback": {
 			"deviceLink": "The output device and the preferred device live under Audio devices.",

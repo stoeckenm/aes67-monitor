@@ -195,45 +195,70 @@ const hints = computed(() => {
 
 <style scoped>
 .overview-hints {
-	max-width: 48rem;
+	max-width: 52rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	margin-bottom: 1.25rem;
+}
+.overview-hints .alert {
+	margin: 0;
 }
 .overview {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-	gap: 1rem;
+	grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+	gap: 1.1rem;
 	align-items: start;
 }
 .overview-card {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	gap: 0.75rem;
-	padding: 1.1rem 1.25rem;
+	gap: 0.85rem;
+	padding: 1.25rem 1.35rem 1.35rem;
 	border: 1px solid var(--sm-border);
-	border-radius: 0.75rem;
+	border-radius: var(--sm-radius-lg);
 	background: var(--sm-surface);
+	box-shadow: var(--sm-shadow-sm);
+	transition:
+		box-shadow 0.18s ease,
+		transform 0.18s ease;
+}
+.overview-card:hover {
+	box-shadow: var(--sm-shadow);
+	transform: translateY(-2px);
 }
 .overview-title {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
 	margin: 0;
-	font-size: 1rem;
+	font-size: 0.8rem;
 	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--sm-muted);
+}
+.overview-title .bi {
+	font-size: 1rem;
+	color: var(--sm-accent);
+	line-height: 1;
 }
 .overview-figure {
 	margin: 0;
-	font-size: 2.25rem;
+	font-size: 2.6rem;
 	font-weight: 600;
 	line-height: 1;
+	letter-spacing: -0.03em;
+	font-variant-numeric: tabular-nums;
 }
 .overview-list {
 	display: grid;
 	grid-template-columns: 1fr auto;
-	gap: 0.2rem 0.75rem;
+	gap: 0.3rem 0.75rem;
 	margin: 0;
 	width: 100%;
-	font-size: 0.9rem;
+	font-size: 0.92rem;
 }
 .overview-list dt {
 	font-weight: 400;
@@ -242,6 +267,13 @@ const hints = computed(() => {
 .overview-list dd {
 	margin: 0;
 	text-align: right;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
 	overflow-wrap: anywhere;
+}
+/* The buttons are a way out of the card, not its point. */
+.overview-card .btn {
+	margin-top: auto;
+	--bs-btn-font-size: 0.88rem;
 }
 </style>

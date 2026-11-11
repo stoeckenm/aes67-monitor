@@ -165,13 +165,16 @@ const title = computed(() => {
 
 <style scoped>
 .admin {
-	--nav-width: 240px;
-	--header-height: 60px;
+	--nav-width: 244px;
+	--header-height: 62px;
 	min-height: 100vh;
+	background: var(--sm-bg);
 }
 .admin-collapsed {
-	--nav-width: 64px;
+	--nav-width: 68px;
 }
+
+/* ------------------------------------------------------------------ sidebar */
 .admin-nav {
 	position: fixed;
 	top: 0;
@@ -184,63 +187,100 @@ const title = computed(() => {
 	background: var(--sm-surface);
 	transition: width 0.2s ease;
 	overflow: hidden;
+	z-index: 20;
 }
 .admin-brand {
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
+	gap: 0.7rem;
 	height: var(--header-height);
-	padding: 0 1rem;
+	padding: 0 1.1rem;
 	border: 0;
-	border-bottom: 1px solid var(--sm-border);
 	background: none;
 	color: inherit;
-	font-size: 1.1rem;
+	font-size: 1.05rem;
 	font-weight: 600;
+	letter-spacing: -0.015em;
 	white-space: nowrap;
 	cursor: pointer;
+}
+.admin-brand .bi {
+	font-size: 1.4rem;
+	color: var(--sm-accent);
+	line-height: 1;
 }
 .admin-menu {
 	list-style: none;
-	margin: 0.75rem 0 0;
-	padding: 0;
+	margin: 0.5rem 0 0;
+	padding: 0 0.55rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
 }
+/* A pill that fills on hover and carries the accent when active, instead of a
+   left border bar. */
 .admin-menu-item {
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
+	gap: 0.7rem;
 	width: 100%;
-	padding: 0.65rem 1rem;
+	padding: 0.55rem 0.7rem;
 	border: 0;
-	border-left: 3px solid transparent;
+	border-radius: var(--sm-radius-sm);
 	background: none;
-	color: inherit;
-	font-size: 1rem;
+	color: var(--sm-muted);
+	font-size: 0.97rem;
+	font-weight: 500;
 	text-align: left;
 	white-space: nowrap;
 	cursor: pointer;
+	transition:
+		background-color 0.14s ease,
+		color 0.14s ease;
+}
+.admin-menu-item .bi {
+	font-size: 1.05rem;
+	line-height: 1;
+	flex-shrink: 0;
 }
 .admin-menu-item:hover {
 	background: var(--sm-surface-hover);
+	color: var(--bs-body-color);
 }
 .admin-menu-item.active {
-	border-left-color: var(--bs-primary);
-	color: var(--bs-primary);
+	background: var(--sm-accent-soft);
+	color: var(--sm-accent);
 	font-weight: 600;
 }
+/* A plain counter, not a shouting pill: these are informational. */
 .admin-menu-item .badge {
 	margin-left: auto;
+	background: var(--sm-surface-2) !important;
+	color: var(--sm-muted);
+	font-size: 0.72rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+.admin-menu-item.active .badge {
+	background: var(--sm-accent) !important;
+	color: #fff;
 }
 .admin-collapsed .admin-brand-text,
 .admin-collapsed .admin-menu-text,
 .admin-collapsed .admin-menu-item .badge {
 	display: none;
 }
+.admin-collapsed .admin-menu-item {
+	justify-content: center;
+	padding-inline: 0;
+}
 .admin-lock {
 	margin-top: auto;
-	padding: 0.75rem;
+	padding: 0.85rem;
 	border-top: 1px solid var(--sm-border);
 }
+
+/* ------------------------------------------------------------------- header */
 .admin-header {
 	position: fixed;
 	top: 0;
@@ -250,14 +290,17 @@ const title = computed(() => {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	padding: 0 1.25rem;
+	padding: 0 1.5rem;
 	border-bottom: 1px solid var(--sm-border);
 	background: var(--sm-surface);
+	box-shadow: var(--sm-shadow-sm);
 	transition: left 0.2s ease;
+	z-index: 10;
 }
 .admin-title {
-	font-size: 1.15rem;
-	font-weight: 500;
+	font-size: 1.2rem;
+	font-weight: 600;
+	letter-spacing: -0.015em;
 	margin: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -270,16 +313,23 @@ const title = computed(() => {
 	margin-left: auto;
 }
 .admin-search {
-	width: 16rem;
+	width: 17rem;
 }
+
+/* --------------------------------------------------------------------- main */
 .admin-main {
-	padding: calc(var(--header-height) + 1.25rem) 1.25rem 1.25rem
-		calc(var(--nav-width) + 1.25rem);
+	padding: calc(var(--header-height) + 1.5rem) 1.5rem 2.5rem
+		calc(var(--nav-width) + 1.5rem);
 	transition: padding-left 0.2s ease;
 }
+
 @media (max-width: 720px) {
 	.admin-search {
 		width: 9rem;
+	}
+	.admin-main {
+		padding-right: 1rem;
+		padding-left: calc(var(--nav-width) + 1rem);
 	}
 }
 </style>

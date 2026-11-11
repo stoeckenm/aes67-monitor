@@ -1,9 +1,17 @@
 /*
- * Layout lives in the components; this file only holds the shared tokens and
- * a few global corrections.
+ * Design tokens and the base layer. Layout stays in the components; this file
+ * decides how the whole application reads.
  *
- * Three rules were removed from the previous stylesheet because they actively
- * hurt usability:
+ * It overrides Bootstrap's own custom properties rather than fighting its
+ * rules, so every component that was built against Bootstrap classes follows
+ * along without being touched. Bootstrap 5.3 declares its light tokens on
+ * [data-bs-theme=light], which has the same specificity as :root, so the
+ * overrides below have to come after bootstrap.css — main.js imports them in
+ * that order. Dark uses :root[data-bs-theme="dark"] to outweigh Bootstrap's
+ * own [data-bs-theme=dark].
+ *
+ * Three rules were removed from the original stylesheet because they actively
+ * hurt usability, and must not come back:
  *   ::selection { background: transparent }  made selected text invisible
  *   ::-webkit-scrollbar { display: none }    hid every scrollbar, so nobody
  *                                            could tell there was more content
@@ -11,20 +19,109 @@
  *                                            background
  */
 
-:root {
-	--sm-border: #e3e5e8;
+:root,
+[data-bs-theme="light"] {
+	/* Accent. Deliberately blue: green and red are taken by "playing" and
+	   "stop", and an accent that collides with a status colour makes a status
+	   impossible to read at a glance. */
+	--sm-accent: #2563eb;
+	--sm-accent-hover: #1d4ed8;
+	--sm-accent-contrast: #ffffff;
+	--sm-accent-soft: rgba(37, 99, 235, 0.1);
+	--sm-accent-ring: rgba(37, 99, 235, 0.25);
+
+	/* Surfaces, from the page backwards */
+	--sm-bg: #f5f6f8;
 	--sm-surface: #ffffff;
-	--sm-surface-hover: #f2f4f7;
-	--sm-muted: #6c757d;
+	--sm-surface-2: #f1f3f5;
+	--sm-surface-hover: #eceff2;
+	--sm-border: #e4e7eb;
+	--sm-border-strong: #d2d7dd;
+	--sm-muted: #5d6b7a;
+
+	--sm-live: #15803d;
+	--sm-live-soft: rgba(21, 128, 61, 0.1);
+	--sm-warn: #b45309;
+	--sm-warn-soft: rgba(180, 83, 9, 0.1);
+	--sm-danger: #b91c1c;
+
+	--sm-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+	--sm-shadow: 0 2px 8px rgba(16, 24, 40, 0.07);
+	--sm-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.1);
+
+	/* Bootstrap, retuned */
+	--bs-primary: var(--sm-accent);
+	--bs-primary-rgb: 37, 99, 235;
+	--bs-link-color: var(--sm-accent);
+	--bs-link-hover-color: var(--sm-accent-hover);
+	--bs-body-bg: var(--sm-bg);
+	--bs-body-color: #1a2027;
+	--bs-secondary-color: var(--sm-muted);
+	--bs-tertiary-bg: var(--sm-surface-2);
+	--bs-border-color: var(--sm-border);
+	--bs-border-color-translucent: var(--sm-border);
+	--bs-emphasis-color: #0b1016;
 }
 
-/* Bootstrap 5.3 switches its own tokens on this attribute, which main sets
-   from the OS preference. */
 :root[data-bs-theme="dark"] {
-	--sm-border: #343a40;
-	--sm-surface: #1f2225;
-	--sm-surface-hover: #2a2e33;
-	--sm-muted: #9aa0a6;
+	--sm-accent: #3b82f6;
+	--sm-accent-hover: #60a5fa;
+	--sm-accent-contrast: #ffffff;
+	--sm-accent-soft: rgba(96, 165, 250, 0.14);
+	--sm-accent-ring: rgba(96, 165, 250, 0.3);
+
+	--sm-bg: #0e1116;
+	--sm-surface: #171b21;
+	--sm-surface-2: #1d232b;
+	--sm-surface-hover: #222932;
+	--sm-border: #28303a;
+	--sm-border-strong: #39424e;
+	--sm-muted: #9aa4b2;
+
+	--sm-live: #4ade80;
+	--sm-live-soft: rgba(74, 222, 128, 0.14);
+	--sm-warn: #fbbf24;
+	--sm-warn-soft: rgba(251, 191, 36, 0.14);
+	--sm-danger: #f87171;
+
+	--sm-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+	--sm-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+	--sm-shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.55);
+
+	--bs-primary: var(--sm-accent);
+	--bs-primary-rgb: 59, 130, 246;
+	--bs-link-color: var(--sm-accent-hover);
+	--bs-link-hover-color: #93c5fd;
+	--bs-body-bg: var(--sm-bg);
+	--bs-body-color: #e4e8ee;
+	--bs-secondary-color: var(--sm-muted);
+	--bs-tertiary-bg: var(--sm-surface-2);
+	--bs-border-color: var(--sm-border);
+	--bs-border-color-translucent: var(--sm-border);
+	--bs-emphasis-color: #f5f7fa;
+}
+
+/* Radii and type are the same in both themes */
+:root {
+	--sm-radius-sm: 7px;
+	--sm-radius: 11px;
+	--sm-radius-lg: 16px;
+	--sm-radius-pill: 999px;
+
+	--bs-border-radius: var(--sm-radius);
+	--bs-border-radius-sm: var(--sm-radius-sm);
+	--bs-border-radius-lg: var(--sm-radius-lg);
+	--bs-border-radius-xl: var(--sm-radius-lg);
+	--bs-border-radius-pill: var(--sm-radius-pill);
+
+	/* "Segoe UI Variable Text" is the Windows 11 UI face and is what makes the
+	   application look native there; the rest of the stack is Bootstrap's. */
+	--bs-font-sans-serif:
+		"Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto,
+		"Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji",
+		"Segoe UI Emoji";
+	--bs-body-font-family: var(--bs-font-sans-serif);
+	--bs-body-line-height: 1.55;
 }
 
 body {
@@ -32,32 +129,243 @@ body {
 	background: var(--bs-body-bg);
 	color: var(--bs-body-color);
 	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.h1,
+.h2,
+.h3,
+.h4,
+.h5,
+.h6 {
+	font-weight: 600;
+	letter-spacing: -0.012em;
 }
 
 /* Visible keyboard focus everywhere. The old navigation was built from
    anchors without href, which could not be focused at all. */
 :focus-visible {
-	outline: 2px solid var(--bs-primary);
+	outline: 2px solid var(--sm-accent);
 	outline-offset: 2px;
+}
+
+::selection {
+	background: var(--sm-accent-soft);
 }
 
 button {
 	font: inherit;
 }
 
+/* Thin but visible: a hidden scrollbar hides that there is more content. */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--sm-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+*::-webkit-scrollbar-track {
+	background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+	background: var(--sm-border-strong);
+	border: 3px solid transparent;
+	border-radius: var(--sm-radius-pill);
+	background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+	background: var(--sm-muted);
+	background-clip: content-box;
+}
+
+/* ------------------------------------------------------------------ buttons */
 /* Kiosk use: touch targets large enough to hit without a mouse */
 .btn {
-	min-height: 2.25rem;
+	--bs-btn-font-weight: 500;
+	min-height: 2.4rem;
+	border-radius: var(--sm-radius-sm);
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		color 0.15s ease,
+		box-shadow 0.15s ease,
+		transform 0.08s ease;
+}
+.btn:active:not(:disabled) {
+	transform: translateY(1px);
+}
+.btn-primary {
+	--bs-btn-bg: var(--sm-accent);
+	--bs-btn-border-color: var(--sm-accent);
+	--bs-btn-hover-bg: var(--sm-accent-hover);
+	--bs-btn-hover-border-color: var(--sm-accent-hover);
+	--bs-btn-active-bg: var(--sm-accent-hover);
+	--bs-btn-active-border-color: var(--sm-accent-hover);
+	--bs-btn-color: var(--sm-accent-contrast);
+	--bs-btn-hover-color: var(--sm-accent-contrast);
+	box-shadow: var(--sm-shadow-sm);
+}
+.btn-outline-secondary {
+	--bs-btn-color: var(--bs-body-color);
+	--bs-btn-border-color: var(--sm-border-strong);
+	--bs-btn-hover-bg: var(--sm-surface-hover);
+	--bs-btn-hover-border-color: var(--sm-border-strong);
+	--bs-btn-hover-color: var(--bs-body-color);
+	--bs-btn-active-bg: var(--sm-surface-hover);
+	--bs-btn-active-color: var(--bs-body-color);
+	--bs-btn-active-border-color: var(--sm-border-strong);
+}
+.btn:focus-visible {
+	box-shadow: 0 0 0 3px var(--sm-accent-ring);
 }
 
+/* ------------------------------------------------------------------- inputs */
+.form-control,
+.form-select {
+	background-color: var(--sm-surface);
+	border-color: var(--sm-border-strong);
+	border-radius: var(--sm-radius-sm);
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
+}
 .form-control:focus,
 .form-select:focus {
-	border-color: var(--bs-primary);
-	box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+	border-color: var(--sm-accent);
+	box-shadow: 0 0 0 3px var(--sm-accent-ring);
+}
+.form-check-input:checked {
+	background-color: var(--sm-accent);
+	border-color: var(--sm-accent);
+}
+.form-check-input:focus {
+	border-color: var(--sm-accent);
+	box-shadow: 0 0 0 3px var(--sm-accent-ring);
+}
+.form-text {
+	color: var(--sm-muted);
 }
 
+/* ------------------------------------------------------------------- badges */
+.badge {
+	border-radius: var(--sm-radius-pill);
+	font-weight: 500;
+	letter-spacing: 0.01em;
+	padding: 0.3em 0.65em;
+}
+
+/* ------------------------------------------------------------------- tables */
+.table {
+	--bs-table-bg: transparent;
+	--bs-table-border-color: var(--sm-border);
+	--bs-table-hover-bg: var(--sm-surface-hover);
+	margin-bottom: 0;
+	font-variant-numeric: tabular-nums;
+}
 .table > :not(caption) > * > * {
-	padding: 0.5rem 0.6rem;
+	padding: 0.6rem 0.7rem;
+	background-color: transparent;
+}
+.table > thead > tr > th {
+	background: var(--sm-surface);
+	border-bottom: 1px solid var(--sm-border-strong);
+	font-size: 0.78rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--sm-muted);
+	white-space: nowrap;
+}
+.table > tbody > tr {
+	transition: background-color 0.12s ease;
+}
+.table > tbody > tr:hover {
+	background: var(--sm-surface-hover);
+}
+/* Tables sit on a surface of their own, which is what separates them from the
+   page instead of a box around every cell. */
+.table-responsive {
+	background: var(--sm-surface);
+	border: 1px solid var(--sm-border);
+	border-radius: var(--sm-radius);
+	box-shadow: var(--sm-shadow-sm);
+	overflow: auto;
+}
+
+/* ------------------------------------------------------------------- alerts */
+.alert {
+	border: 1px solid var(--sm-border);
+	border-radius: var(--sm-radius);
+	box-shadow: var(--sm-shadow-sm);
+}
+.alert-secondary {
+	--bs-alert-bg: var(--sm-surface);
+	--bs-alert-color: var(--bs-body-color);
+	--bs-alert-border-color: var(--sm-border);
+}
+.alert-warning {
+	--bs-alert-bg: var(--sm-warn-soft);
+	--bs-alert-color: var(--sm-warn);
+	--bs-alert-border-color: transparent;
+}
+.alert-danger {
+	--bs-alert-bg: rgba(185, 28, 28, 0.08);
+	--bs-alert-color: var(--sm-danger);
+	--bs-alert-border-color: transparent;
+}
+
+/* --------------------------------------------------------- segmented tabs */
+/* .nav-tabs read as a 2010s browser tab strip. Restyled into a segmented
+   control here rather than in the markup, so the settings page needs no
+   change. */
+.nav-tabs {
+	display: inline-flex;
+	gap: 0.15rem;
+	padding: 0.25rem;
+	border: 1px solid var(--sm-border);
+	border-radius: var(--sm-radius);
+	background: var(--sm-surface-2);
+}
+.nav-tabs .nav-link {
+	border: 0;
+	border-radius: var(--sm-radius-sm);
+	padding: 0.4rem 0.9rem;
+	color: var(--sm-muted);
+	font-weight: 500;
+	transition:
+		background-color 0.15s ease,
+		color 0.15s ease;
+}
+.nav-tabs .nav-link:hover {
+	background: var(--sm-surface-hover);
+	color: var(--bs-body-color);
+	border: 0;
+}
+.nav-tabs .nav-link.active {
+	background: var(--sm-surface);
+	color: var(--bs-body-color);
+	box-shadow: var(--sm-shadow-sm);
+}
+
+/* --------------------------------------------------------------- utilities */
+/* A surface panel, so the views stop inventing the same five declarations. */
+.sm-panel {
+	background: var(--sm-surface);
+	border: 1px solid var(--sm-border);
+	border-radius: var(--sm-radius);
+	box-shadow: var(--sm-shadow-sm);
+}
+.sm-figure {
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.02em;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -16,6 +16,7 @@ AES67 Stream Monitor ist eine plattformübergreifende Audio-over-IP-Monitoring-A
 - **Audiogeräte mit bevorzugtem Gerät:** Eine eigene Seite listet die Ausgabegeräte mit Kanälen und Sampleraten. Ein Gerät kann als **bevorzugt** markiert werden: es wird benutzt, sobald es angeschlossen ist — auch nach einem Neustart. Fehlt es, läuft die Ausgabe über das Ersatzgerät weiter und übernimmt von selbst wieder, sobald das Gerät zurück ist. Alternativ folgt der Monitor der System-Audioausgabe; die Seite sagt immer, welches Gerät aus welchem Grund aktiv ist.
 - **Admin Mode:** Optionale Ausblendung aller Einstellungen, wenn der Admin-Modus deaktiviert ist.
 - **Kanal-Verwaltung:** Eine eigene Adminseite zum Einrichten der Kanäle, die Bediener sehen: Anzeigename, Quelle, Kanalzuordnung und Reihenfolge an einer Stelle, mit Vorschau der Bedienansicht.
+- **Hell und dunkel:** Das Farbschema folgt dem Betriebssystem oder wird fest auf hell bzw. dunkel gestellt — pro Benutzer. Dunkel ist in abgedunkelten Regien angenehmer.
 - **Datenpersistenz:** Getrennte Speicherung von **maschinenspezifischen Einstellungen** (`persistentData`) und **benutzerspezifischen UI-Einstellungen** (`userData`).
 
 ---

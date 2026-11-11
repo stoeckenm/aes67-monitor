@@ -304,21 +304,47 @@ const remove = () => {
 </script>
 
 <style scoped>
+/* The definition lists are the page's content, so they carry the surface
+   rather than floating on the background. */
 .detail-list {
 	display: grid;
-	grid-template-columns: minmax(7rem, auto) 1fr;
-	gap: 0.15rem 0.75rem;
+	grid-template-columns: minmax(7.5rem, auto) 1fr;
+	gap: 0.1rem 1rem;
 	margin: 0;
+	padding: 1rem 1.15rem;
+	border: 1px solid var(--sm-border);
+	border-radius: var(--sm-radius);
+	background: var(--sm-surface);
+	box-shadow: var(--sm-shadow-sm);
+	font-size: 0.92rem;
 }
 .detail-list dt {
-	font-weight: 600;
+	font-weight: 400;
+	color: var(--sm-muted);
+	padding: 0.3rem 0;
 }
 .detail-list dd {
 	margin: 0;
+	padding: 0.3rem 0;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
 	overflow-wrap: anywhere;
 }
 .sdp-text {
 	font-family: var(--bs-font-monospace);
 	font-size: 0.8rem;
+	line-height: 1.5;
+	background: var(--sm-surface-2);
+	border-color: var(--sm-border);
+	border-radius: var(--sm-radius);
+	resize: vertical;
+}
+legend.h6 {
+	font-size: 0.8rem;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--sm-muted);
+	margin-bottom: 0.5rem;
 }
 </style>

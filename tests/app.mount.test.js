@@ -37,6 +37,7 @@ const sharedConfig = (overrides = {}) => ({
 			window: { width: 1280, height: 800, x: null, y: null, maximized: true },
 			favoritesOrder: [],
 			settingsTab: "playback",
+			theme: "system",
 		},
 	},
 });
@@ -401,5 +402,108 @@ describe("the preferred audio device", () => {
 		expect(wrapper.text()).toContain("Audiogeräte");
 		// The radio list of devices is no longer here
 		expect(wrapper.find("input[name='output-device']").exists()).toBe(false);
+	});
+});
+
+describe("what the operator tile says", () => {
+	const stream = (id, extra = {}) => ({
+		id,
+		name: `Stream ${id}`,
+		isSupported: true,
+		samplerate: 48000,
+		channels: 2,
+		codec: "L24",
+		mcast: "239.69.1.1",
+		media: [{ port: 5004, rtp: [{ codec: "L24", rate: 48000, encoding: 2 }] }],
+		...extra,
+	});
+
+	const withChannel = async (streams, devices) => {
+		const wrapper = await mountApp();
+		const discovery = useDiscoveryStore();
+		discovery.audioDevices = devices;
+		discovery.applyStreams(streams);
+		const { useChannelsStore } = await import("../src/stores/channels.js");
+		useChannelsStore().add({ id: "a" });
+		await wrapper.vm.$nextTick();
+		return wrapper;
+	};
+
+	const speakers = [
+		{
+			name: "Speakers",
+			inputChannels: 0,
+			outputChannels: 2,
+			isCurrent: true,
+			sampleRates: [48000],
+		},
+	];
+
+	it("says a channel is ready and offers the one button", async () => {
+		const wrapper = await withChannel([stream("a")], speakers);
+		expect(wrapper.find(".channel-state-text").text()).toBe("Bereit");
+		const button = wrapper.find(".channel-button");
+		expect(button.text()).toContain("Abhören");
+		expect(button.attributes("disabled")).toBeUndefined();
+	});
+
+	// A configured channel that is gone has to stay visible and say so, rather
+	// than leaving the operator with an empty page.
+	it("says a channel is not on the network, with its button disabled", async () => {
+		const wrapper = await withChannel([], speakers);
+		expect(wrapper.find(".channel-state-text").text()).toBe(
+			"Zurzeit nicht im Netz",
+		);
+		expect(wrapper.find(".channel").classes()).toContain("is-offline");
+		expect(
+			wrapper.find(".channel-button").attributes("disabled"),
+		).toBeDefined();
+	});
+
+	it("says the output device cannot play the format", async () => {
+		const wrapper = await withChannel(
+			[stream("a", { samplerate: 96000 })],
+			speakers,
+		);
+		expect(wrapper.find(".channel-state-text").text()).toContain(
+			"nicht unterstützt",
+		);
+		expect(wrapper.find(".channel").classes()).toContain("is-blocked");
+	});
+
+	it("marks the channel that is playing", async () => {
+		const wrapper = await withChannel([stream("a")], speakers);
+		await wrapper.find(".channel-button").trigger("click");
+		await wrapper.vm.$nextTick();
+
+		expect(wrapper.find(".channel").classes()).toContain("is-playing");
+		expect(wrapper.find(".channel-state-text").text()).toBe("Läuft");
+		expect(wrapper.find(".channel-button").text()).toContain("Stopp");
+		expect(sent.some((m) => m.type === "play")).toBe(true);
+	});
+});
+
+describe("the colour scheme", () => {
+	it("applies the stored choice and remembers a change", async () => {
+		const wrapper = await mountApp();
+		const session = useSessionStore();
+		const { useConfigStore } = await import("../src/stores/config.js");
+		const config = useConfigStore();
+
+		session.unlock();
+		session.setPage("settings");
+		config.setSettingsTab("appearance");
+		await wrapper.vm.$nextTick();
+
+		expect(wrapper.text()).toContain("Farbschema");
+		// Per user, not machine-wide: worth saying on the page itself.
+		expect(wrapper.text()).toContain("nur für diesen Benutzer");
+
+		const dark = wrapper.findAll("button").find((b) => b.text() === "Dunkel");
+		await dark.trigger("click");
+		await wrapper.vm.$nextTick();
+
+		expect(config.user.settings.theme).toBe("dark");
+		expect(document.documentElement.getAttribute("data-bs-theme")).toBe("dark");
 	});
 });

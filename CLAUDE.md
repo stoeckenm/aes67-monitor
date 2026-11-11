@@ -100,7 +100,7 @@ Three invariants worth knowing:
 
 `backend/config/paths.js` probes writability and falls back, because the old fixed `/etc/StreamMonitor` needed root and failed silently.
 
-Defaults are **duplicated** in `backend/config/defaults.js` and in `stores/config.js` — change both. Pure merge and migration logic is in `backend/persistence/migrate.js` (no electron import, so it is unit tested).
+Defaults are **duplicated** in `backend/config/defaults.js` and in `stores/config.js` — change both. The user-level ones now include `settingsTab` and `theme`. Pure merge and migration logic is in `backend/persistence/migrate.js` (no electron import, so it is unit tested).
 
 **Main-owned keys** that `savePersistent` deliberately ignores from the renderer: `passwordHash`, `network`, `manualStreams`, and inside `settings` both `audioInterface` and `storedAudioInterface`. Trusting the renderer's copy of these wipes or reverts them — for the two audio keys that means a pinned device quietly losing its pin, because main resolves the active device on a timer while the renderer holds a snapshot.
 
@@ -111,6 +111,43 @@ Migrations run once on load and back up the previous file to `config.json.bak`: 
 - **Channels** are references, `{ id, order }`. Live data is resolved in `stores/channels.js`. A channel whose stream is not announced stays visible and is marked offline — an operator needs to see that a channel is gone, not an empty page. The **persisted key is still `persistentData.favorites`**: the vocabulary moved to "channel", the stored shape did not. Renaming the key would need a migration for nothing the user can see, and getting it wrong drops every configured channel on the first start after an update.
 - **Friendly names** live in `persistentData.streamNames` keyed by stream id, not on stream objects, which discovery replaces. The display name is editable both on the stream detail page and inline in the channel list, because it is the one field an operator actually reads.
 - **Manual streams** are persisted in `persistentData.manualStreams` and replayed into the worker after init. Main mirrors them _out of_ the worker's session list, and suspends mirroring until the replay has happened — a freshly respawned worker reports an empty list, and mirroring that would erase them.
+
+## Look and feel (`src/assets/style.css`)
+
+One token layer, no component library on top of the component library. The file
+**overrides Bootstrap's own custom properties** (`--bs-primary`, `--bs-body-bg`,
+`--bs-border-radius`, the font stack) instead of fighting its rules, so every
+view built from Bootstrap classes follows along untouched. That is why the
+accent, the radii and the surfaces can be changed in one place.
+
+- **Import order matters.** `src/main.js` loads `bootstrap.css` first, then
+  `style.css`. Bootstrap 5.3 declares its light tokens on
+  `[data-bs-theme=light]`, which has the same specificity as `:root`, so the
+  overrides only win by coming later. Dark uses `:root[data-bs-theme="dark"]`
+  to outweigh Bootstrap's own `[data-bs-theme=dark]`.
+- The `--sm-*` tokens are the vocabulary: `accent`, `bg`, `surface`,
+  `surface-2`, `surface-hover`, `border`, `border-strong`, `muted`, `live`,
+  `warn`, `danger`, three shadows and four radii. **The accent is blue on
+  purpose**: green and red are taken by "playing" and "stop", and an accent
+  that collides with a status colour makes the status unreadable at a glance.
+- `.nav-tabs` is restyled into a segmented control in CSS, not in the markup,
+  so `SettingsView` needed no change for it.
+- Three rules from the original stylesheet must not come back, and the file says
+  why: a transparent `::selection`, `::-webkit-scrollbar { display: none }` and
+  `.badge { z-index: -1 }`.
+
+**Colour scheme**: `userData.settings.theme` is `system` | `light` | `dark`,
+resolved by the pure `resolveTheme` in `src/utils/theme.js` (anything unknown
+follows the OS, so a config from a newer version cannot pin an old build to the
+wrong scheme). `src/main.js` applies the OS preference before the first paint;
+`App.vue` takes over once the config has loaded and keeps following the OS while
+the choice is `system`. It is the one setting on the **user** level rather than
+machine-wide, which the settings page states.
+
+**Operator tiles** carry their state in words, not only in colour:
+`channels.ready` / `playing` / `offline` / `unsupportedFormat`, with a dot that
+only pulses while something is playing. The button is the single control an
+operator touches, so it is full width and 3.4 rem tall.
 
 ## Settings presentation
 
@@ -146,7 +183,7 @@ A `sdpDeleteTimeout` of `0` means "keep until announced as deleted"; the worker 
 
 Vitest, `tests/`. Node environment by default; component tests opt into jsdom with `// @vitest-environment jsdom`. No E2E — Electron plus the native `audify` binding in CI is not worth it.
 
-Coverage is deliberately on the pure logic and the regressions: SDP support gating, the password module, config merges and migrations, the settings presets, channel resolution and ordering, the navigation guard predicate, the output-device precedence and its labels, the search and sender-filter lifetime in `session`, the relative-time label, locale key parity, and a mount smoke test per shell (including that a stream name containing markup is escaped, and that the admin pages keep playback configuration out of the streams table).
+Coverage is deliberately on the pure logic and the regressions: SDP support gating, the password module, config merges and migrations, the settings presets, channel resolution and ordering, the navigation guard predicate, the output-device precedence and its labels, the colour-scheme resolution, the search and sender-filter lifetime in `session`, the relative-time label, locale key parity, and a mount smoke test per shell (including that a stream name containing markup is escaped, and that the admin pages keep playback configuration out of the streams table).
 
 **Audio playback and SAP discovery cannot be verified in CI or on a dev machine without AES67 traffic.** Verify against hardware or GStreamer streams per the README matrix and [philhartung/aoip-tester](https://github.com/philhartung/aoip-tester).
 

@@ -1,18 +1,17 @@
 <template>
-	<div v-if="favorites.resolved.length === 0" class="channels-empty">
+	<div v-if="channels.resolved.length === 0" class="channels-empty">
 		<i class="bi bi-music-note-list channels-empty-icon"></i>
-		<p class="channels-empty-text">{{ t("operator.empty") }}</p>
-		<p v-if="!session.adminMode" class="channels-empty-hint">
-			{{ t("operator.emptyHint") }}
+		<p class="channels-empty-text">{{ t("channels.empty") }}</p>
+		<p class="channels-empty-hint">
+			{{ editable ? t("channels.admin.emptyHint") : t("channels.emptyHint") }}
 		</p>
-		<p v-else class="channels-empty-hint">{{ t("streams.emptyHint") }}</p>
 	</div>
 
 	<draggable
 		v-else
 		v-model="order"
 		item-key="id"
-		:disabled="!session.adminMode"
+		:disabled="!editable"
 		class="channels"
 		@end="commitOrder"
 	>
@@ -22,7 +21,7 @@
 				:class="{
 					'channel-offline': !channel.online,
 					'channel-playing': playback.isPlaying(channel.id),
-					'channel-draggable': session.adminMode,
+					'channel-draggable': editable,
 				}"
 			>
 				<div class="channel-body">
@@ -32,21 +31,21 @@
 
 					<p v-if="!channel.online" class="channel-state channel-state-warn">
 						<i class="bi bi-slash-circle"></i>
-						{{ t("operator.offline") }}
+						{{ t("channels.offline") }}
 					</p>
 					<p
 						v-else-if="!channel.playable"
 						class="channel-state channel-state-warn"
 					>
 						<i class="bi bi-exclamation-triangle"></i>
-						{{ t("operator.unsupportedFormat") }}
+						{{ t("channels.unsupportedFormat") }}
 					</p>
 					<p
 						v-else-if="playback.isPlaying(channel.id)"
 						class="channel-state channel-state-live"
 					>
 						<i class="bi bi-broadcast"></i>
-						{{ t("operator.playing") }}
+						{{ t("channels.playing") }}
 					</p>
 				</div>
 
@@ -69,21 +68,10 @@
 						<span class="channel-button-label">
 							{{
 								playback.isPlaying(channel.id)
-									? t("operator.stop")
-									: t("operator.listen")
+									? t("channels.stop")
+									: t("channels.listen")
 							}}
 						</span>
-					</button>
-
-					<button
-						v-if="session.adminMode"
-						type="button"
-						class="btn btn-sm btn-outline-danger"
-						:title="t('streams.unfavorite')"
-						:aria-label="t('streams.unfavorite')"
-						@click="remove(channel)"
-					>
-						<i class="bi bi-trash"></i>
 					</button>
 				</div>
 			</article>
@@ -92,29 +80,36 @@
 </template>
 
 <script setup>
+// The operator's whole screen. The admin side reuses it read-only as a preview
+// and may enable dragging, but everything that configures a channel lives in
+// ChannelsAdminView: this component used to branch on adminMode in four
+// places and served two audiences at once.
 import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import draggable from "vuedraggable";
-import { useSessionStore } from "../stores/session";
-import { useFavoritesStore } from "../stores/favorites";
+import { useChannelsStore } from "../stores/channels";
 import { usePlaybackStore } from "../stores/playback";
 
+const props = defineProps({
+	editable: { type: Boolean, default: false },
+});
+
 const { t } = useI18n();
-const session = useSessionStore();
-const favorites = useFavoritesStore();
+const channels = useChannelsStore();
 const playback = usePlaybackStore();
 
 // Local mirror for the drag handler, kept in step with the store
-const order = ref([...favorites.resolved]);
+const order = ref([...channels.resolved]);
 watch(
-	() => favorites.resolved,
+	() => channels.resolved,
 	(next) => {
 		order.value = [...next];
 	},
 );
 
 const commitOrder = () => {
-	favorites.reorder(order.value.map((channel) => channel.id));
+	if (!props.editable) return;
+	channels.reorder(order.value.map((channel) => channel.id));
 };
 
 const toggle = (channel) => {
@@ -123,11 +118,6 @@ const toggle = (channel) => {
 		return;
 	}
 	if (channel.stream) playback.play(channel.stream);
-};
-
-const remove = (channel) => {
-	if (playback.isPlaying(channel.id)) playback.stop();
-	favorites.remove(channel.id);
 };
 </script>
 

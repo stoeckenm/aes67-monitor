@@ -2,22 +2,17 @@
 	"app": {
 		"name": "Stream Monitor"
 	},
-	"operator": {
-		"title": "Kanäle",
-		"empty": "Es sind noch keine Kanäle eingerichtet.",
-		"emptyHint": "Bitte wenden Sie sich an die Technik.",
-		"waiting": "Kanäle werden gesucht …",
-		"offline": "Zurzeit nicht im Netz",
-		"listen": "Abhören",
-		"stop": "Stopp",
-		"playing": "Läuft",
-		"unsupportedFormat": "Format wird vom Ausgabegerät nicht unterstützt",
-		"volume": "Lautstärke"
+	"common": {
+		"back": "Zurück",
+		"close": "Schließen",
+		"yes": "Ja",
+		"no": "Nein"
 	},
 	"nav": {
-		"favorites": "Kanäle",
+		"overview": "Übersicht",
+		"channels": "Kanäle",
 		"streams": "Streams",
-		"devices": "Geräte",
+		"senders": "Sender",
 		"settings": "Einstellungen",
 		"unlock": "Admin-Modus",
 		"lock": "Admin beenden",
@@ -26,6 +21,75 @@
 		"passwordWrong": "Passwort falsch",
 		"submit": "Entsperren"
 	},
+	"overview": {
+		"title": "Übersicht",
+		"network": "Netzwerk",
+		"interface": "Netzwerkkarte",
+		"interfaceNone": "Keine Netzwerkkarte ausgewählt",
+		"discovery": "Entdeckte Streams",
+		"lastUpdate": "Letzte Ankündigung",
+		"lastUpdateNever": "Noch keine empfangen",
+		"justNow": "gerade eben",
+		"secondsAgo": "vor {count} s",
+		"minutesAgo": "vor {count} min",
+		"streamsTotal": "Streams insgesamt",
+		"playable": "davon abspielbar",
+		"unsupported": "nicht abspielbar",
+		"manual": "manuell hinzugefügt",
+		"senders": "Sender im Netz",
+		"channels": "Kanäle",
+		"channelsConfigured": "eingerichtet",
+		"channelsOnline": "im Netz",
+		"channelsOffline": "fehlen",
+		"playback": "Wiedergabe",
+		"output": "Ausgabegerät",
+		"outputFollowSystem": "Folgt dem System-Standard",
+		"outputNone": "Kein Gerät verfügbar",
+		"playingNow": "Läuft gerade",
+		"playingNothing": "Nichts",
+		"goStreams": "Streams ansehen",
+		"goChannels": "Kanäle einrichten",
+		"goSenders": "Sender ansehen",
+		"goSettings": "Einstellungen öffnen",
+		"hintNoInterface": "Es ist keine Netzwerkkarte ausgewählt. Ohne sie werden keine Streams gefunden.",
+		"hintNoStreams": "Es sind noch keine Ankündigungen eingegangen. Das kann einige Sekunden dauern.",
+		"hintNoChannels": "Es sind noch keine Kanäle eingerichtet. Bediener sehen eine leere Seite.",
+		"hintNoOutput": "Es ist kein Wiedergabegerät verfügbar."
+	},
+	"channels": {
+		"title": "Kanäle",
+		"empty": "Es sind noch keine Kanäle eingerichtet.",
+		"emptyHint": "Bitte wenden Sie sich an die Technik.",
+		"offline": "Zurzeit nicht im Netz",
+		"listen": "Abhören",
+		"stop": "Stopp",
+		"playing": "Läuft",
+		"unsupportedFormat": "Format wird vom Ausgabegerät nicht unterstützt",
+		"admin": {
+			"title": "Kanäle einrichten",
+			"intro": "Diese Kanäle sehen Bediener, in dieser Reihenfolge.",
+			"list": "Liste",
+			"preview": "Vorschau",
+			"previewHint": "So sieht die Bedienansicht aus. Die Reihenfolge lässt sich hier ziehen.",
+			"position": "Nr.",
+			"name": "Anzeigename",
+			"namePlaceholder": "Name für Bediener",
+			"nameFallback": "kein eigener Name",
+			"source": "Quelle",
+			"sender": "Sender",
+			"mapping": "Kanalzuordnung",
+			"state": "Status",
+			"online": "Im Netz",
+			"offline": "Nicht im Netz",
+			"notPlayable": "Nicht abspielbar",
+			"up": "Nach oben",
+			"down": "Nach unten",
+			"remove": "Kanal entfernen",
+			"details": "Stream-Details",
+			"empty": "Noch keine Kanäle eingerichtet.",
+			"emptyHint": "Unter Streams einen Stream als Kanal übernehmen."
+		}
+	},
 	"streams": {
 		"title": "Streams",
 		"empty": "Keine Streams gefunden.",
@@ -33,15 +97,16 @@
 		"search": "Suchen",
 		"addManual": "Stream über SDP hinzufügen",
 		"showUnsupported": "Nicht abspielbare Streams anzeigen",
+		"senderFilter": "Nur Sender {sender}",
+		"senderFilterClear": "Filter aufheben",
 		"columns": {
 			"displayName": "Anzeigename",
 			"name": "Stream-Name",
 			"tags": "Merkmale",
 			"info": "Beschreibung",
-			"address": "Geräteadresse",
+			"sender": "Sender",
 			"format": "Format",
-			"multicast": "Multicast",
-			"channel": "Kanal"
+			"state": "Status"
 		},
 		"tags": {
 			"dante": "Dante",
@@ -51,11 +116,25 @@
 		},
 		"notAvailable": "Nicht verfügbar",
 		"notSupported": "Nicht abspielbar",
-		"favorite": "Als Kanal übernehmen",
-		"unfavorite": "Aus den Kanälen entfernen",
+		"playable": "Abspielbar",
+		"wrongSampleRate": "Samplerate vom Ausgabegerät nicht unterstützt",
+		"addChannel": "Als Kanal übernehmen",
+		"removeChannel": "Aus den Kanälen entfernen",
 		"details": "Details",
 		"channelMono": "{channel} Mono",
 		"channelStereo": "{first} + {second} Stereo"
+	},
+	"senders": {
+		"title": "Sender",
+		"intro": "Geräte, die im Netz Streams ankündigen.",
+		"empty": "Keine Sender gefunden.",
+		"name": "Name",
+		"address": "Adresse",
+		"streamCount": "Streams",
+		"description": "Beschreibung",
+		"rename": "Umbenennen",
+		"save": "Speichern",
+		"filter": "Streams anzeigen"
 	},
 	"stream": {
 		"displayName": "Anzeigename",
@@ -65,7 +144,6 @@
 		"address": "Adresse",
 		"clockSource": "Taktquelle",
 		"tags": "Merkmale",
-		"group": "Stream-Gruppe",
 		"media": "Medienstrom",
 		"protocol": "Protokoll",
 		"sourceFilter": "Quellfilter",
@@ -73,14 +151,20 @@
 		"codec": "Codec",
 		"packetTime": "Paketzeit",
 		"description": "Beschreibung",
-		"channels": "{count} Kanäle @ {rate} Hz",
+		"channels": "{count} Kanäle, {rate} Hz",
 		"pcm24": "24 Bit PCM",
 		"pcm16": "16 Bit PCM",
 		"rawSdp": "SDP-Ankündigung",
 		"copySdp": "SDP kopieren",
 		"copied": "Kopiert",
 		"delete": "Stream entfernen",
-		"effectiveBuffer": "Wirksame Pufferung: {count} Pakete"
+		"playbackGroup": "Wiedergabe",
+		"mediaChoice": "Verwendeter Medienstrom",
+		"mapping": "Kanalzuordnung",
+		"mappingHint": "Welche Kanäle des Streams auf die beiden Ausgänge gelegt werden.",
+		"lockedWhilePlaying": "Während der Wiedergabe nicht änderbar.",
+		"bufferLabel": "Wirksame Pufferung",
+		"effectiveBuffer": "{count} Pakete"
 	},
 	"sdp": {
 		"title": "Stream hinzufügen",
@@ -89,31 +173,20 @@
 		"save": "Hinzufügen",
 		"invalid": "Die SDP-Daten konnten nicht gelesen werden."
 	},
-	"devices": {
-		"title": "Geräte",
-		"empty": "Keine Geräte gefunden.",
-		"name": "Name",
-		"address": "Adresse",
-		"streamCount": "Streams",
-		"description": "Beschreibung",
-		"rename": "Umbenennen",
-		"save": "Speichern",
-		"filter": "Streams anzeigen"
-	},
 	"settings": {
 		"title": "Einstellungen",
 		"tabs": {
-			"audio": "Audio",
+			"playback": "Wiedergabe",
 			"network": "Netzwerk",
 			"access": "Zugang"
 		},
-		"audio": {
+		"playback": {
 			"output": "Wiedergabegerät",
-			"followSystem": "Immer das Standardgerät von Windows verwenden",
+			"followSystem": "Immer das Standardgerät des Systems verwenden",
 			"followSystemHint": "Der Monitor folgt dann automatisch der Systemausgabe.",
 			"noDevice": "Kein Wiedergabegerät gefunden.",
 			"current": "Aktiv",
-			"systemDefault": "Windows-Standard",
+			"systemDefault": "System-Standard",
 			"stability": "Verhalten bei Netzwerkstörungen",
 			"stabilityHint": "Mehr Pufferung übersteht Störungen besser, verzögert die Wiedergabe aber stärker.",
 			"levels": {
@@ -138,8 +211,7 @@
 				"default": "Nach 5 Minuten",
 				"never": "Nie ausblenden",
 				"custom": "Eigener Wert"
-			},
-			"seconds": "Sekunden"
+			}
 		},
 		"access": {
 			"password": "Admin-Passwort",
@@ -161,11 +233,5 @@
 		"configUnwritable": "Die Einstellungen konnten nicht gespeichert werden.",
 		"noNetworkInterface": "Keine Netzwerkkarte verfügbar. Es können keine Streams empfangen werden.",
 		"noAudioDevice": "Kein Wiedergabegerät verfügbar."
-	},
-	"common": {
-		"back": "Zurück",
-		"close": "Schließen",
-		"yes": "Ja",
-		"no": "Nein"
 	}
 }

@@ -31,6 +31,9 @@ const userDefaults = () => ({
 		sidebarCollapsed: false,
 		window: { width: 1280, height: 800, x: null, y: null, maximized: true },
 		favoritesOrder: [],
+		// Which settings tab was last open. A local ref reset it on every
+		// navigation, which made the page feel like it forgot where you were.
+		settingsTab: "playback",
 	},
 });
 
@@ -122,6 +125,10 @@ export const useConfigStore = defineStore("config", () => {
 		user.value.settings.sidebarCollapsed = collapsed;
 	};
 
+	const setSettingsTab = (tab) => {
+		user.value.settings.settingsTab = tab;
+	};
+
 	// Friendly names live in a map keyed by stream id, not on the stream
 	// objects, which discovery replaces wholesale on every update.
 	const nameOf = (streamId) => persistent.value.streamNames?.[streamId] || "";
@@ -154,6 +161,7 @@ export const useConfigStore = defineStore("config", () => {
 		savePersistent,
 		saveUser,
 		setSidebarCollapsed,
+		setSettingsTab,
 		nameOf,
 		setName,
 		deviceInfo,

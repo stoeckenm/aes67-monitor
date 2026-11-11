@@ -1,7 +1,7 @@
 <template>
 	<div class="operator">
 		<header class="operator-bar">
-			<h1 class="operator-title">{{ t("operator.title") }}</h1>
+			<h1 class="operator-title">{{ t("channels.title") }}</h1>
 			<AdminLock />
 		</header>
 

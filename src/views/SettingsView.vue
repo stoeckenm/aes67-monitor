@@ -8,18 +8,18 @@
 					:class="{ active: active === tab }"
 					role="tab"
 					:aria-selected="active === tab"
-					@click="active = tab"
+					@click="config.setSettingsTab(tab)"
 				>
 					{{ t(`settings.tabs.${tab}`) }}
 				</button>
 			</li>
 		</ul>
 
-		<!-- AUDIO -->
-		<section v-if="active === 'audio'" class="settings-panel">
+		<!-- PLAYBACK: what comes out of this machine -->
+		<section v-if="active === 'playback'" class="settings-panel">
 			<fieldset class="settings-group">
 				<legend class="settings-legend">
-					{{ t("settings.audio.output") }}
+					{{ t("settings.playback.output") }}
 				</legend>
 
 				<div class="form-check mb-3">
@@ -30,15 +30,15 @@
 						type="checkbox"
 					/>
 					<label class="form-check-label" for="follow-system">
-						{{ t("settings.audio.followSystem") }}
+						{{ t("settings.playback.followSystem") }}
 					</label>
 					<div class="form-text">
-						{{ t("settings.audio.followSystemHint") }}
+						{{ t("settings.playback.followSystemHint") }}
 					</div>
 				</div>
 
 				<p v-if="discovery.outputDevices.length === 0" class="text-muted">
-					{{ t("settings.audio.noDevice") }}
+					{{ t("settings.playback.noDevice") }}
 				</p>
 
 				<ul v-else class="device-list">
@@ -54,13 +54,13 @@
 							/>
 							<span class="device-name">{{ device.name }}</span>
 							<span v-if="device.isCurrent" class="badge text-bg-success">
-								{{ t("settings.audio.current") }}
+								{{ t("settings.playback.current") }}
 							</span>
 							<span
 								v-if="device.isDefaultOutput"
 								class="badge text-bg-secondary"
 							>
-								{{ t("settings.audio.systemDefault") }}
+								{{ t("settings.playback.systemDefault") }}
 							</span>
 						</label>
 					</li>
@@ -69,10 +69,10 @@
 
 			<fieldset class="settings-group">
 				<legend class="settings-legend">
-					{{ t("settings.audio.stability") }}
+					{{ t("settings.playback.stability") }}
 				</legend>
 				<div class="form-text mb-2">
-					{{ t("settings.audio.stabilityHint") }}
+					{{ t("settings.playback.stabilityHint") }}
 				</div>
 
 				<select v-model="bufferLevel" class="form-select settings-control">
@@ -82,12 +82,12 @@
 						:value="level"
 						:disabled="level === 'custom'"
 					>
-						{{ t(`settings.audio.levels.${level}`) }}
+						{{ t(`settings.playback.levels.${level}`) }}
 					</option>
 				</select>
 
 				<details class="mt-3" :open="bufferLevel === 'custom'">
-					<summary>{{ t("settings.audio.expert") }}</summary>
+					<summary>{{ t("settings.playback.expert") }}</summary>
 					<div class="input-group settings-control mt-2">
 						<input
 							v-model.number="bufferSize"
@@ -96,18 +96,18 @@
 							max="512"
 							class="form-control"
 							:disabled="!config.settings.bufferEnabled"
-							:aria-label="t('settings.audio.expert')"
+							:aria-label="t('settings.playback.expert')"
 						/>
 						<span class="input-group-text">
-							{{ t("settings.audio.packets") }}
+							{{ t("settings.playback.packets") }}
 						</span>
 					</div>
-					<div class="form-text">{{ t("settings.audio.expertHint") }}</div>
+					<div class="form-text">{{ t("settings.playback.expertHint") }}</div>
 				</details>
 			</fieldset>
 		</section>
 
-		<!-- NETWORK -->
+		<!-- NETWORK: what this machine listens for -->
 		<section v-if="active === 'network'" class="settings-panel">
 			<fieldset class="settings-group">
 				<legend class="settings-legend">
@@ -209,7 +209,7 @@
 				</p>
 
 				<!-- Said plainly: this is a guard against misuse of the UI, not
-				a security boundary. -->
+        a security boundary. -->
 				<p class="form-text mt-3">{{ t("settings.access.disclaimer") }}</p>
 			</fieldset>
 		</section>
@@ -217,6 +217,11 @@
 </template>
 
 <script setup>
+// Grouped by subsystem rather than by technology: "Wiedergabe" is everything
+// that affects what comes out of this machine, "Netzwerk" everything that
+// affects what it listens for. The jitter buffer and the discovery timeout are
+// both time behaviour, but they belong to different subsystems, which the old
+// "Audio"/"Netzwerk" split left unexplained.
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useConfigStore } from "../stores/config";
@@ -235,8 +240,13 @@ const config = useConfigStore();
 const discovery = useDiscoveryStore();
 const playback = usePlaybackStore();
 
-const tabs = ["audio", "network", "access"];
-const active = ref("audio");
+const tabs = ["playback", "network", "access"];
+// Persisted, so the page does not forget which tab was open on every
+// navigation away and back.
+const active = computed(() => {
+	const stored = config.user.settings.settingsTab;
+	return tabs.includes(stored) ? stored : "playback";
+});
 
 const followSystem = computed({
 	get: () => config.settings.followSystemAudio,

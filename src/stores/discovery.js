@@ -11,6 +11,10 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 	const streams = ref([]);
 	const networkInterfaces = ref([]);
 	const audioDevices = ref([]);
+	// When the last announcement batch arrived. The overview needs an answer to
+	// "is discovery hearing anything at all", which a stream count alone does
+	// not give: a stale list and a live one look identical.
+	const lastUpdate = ref(0);
 
 	// Discovery sends the full session list. Merging by id keeps object
 	// identities alive, so a reference held elsewhere (the open detail page)
@@ -36,6 +40,7 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 			if (!seen.has(id)) known.delete(id);
 		}
 		streams.value = merged;
+		lastUpdate.value = Date.now();
 	};
 
 	const streamById = (id) => known.get(id) || null;
@@ -62,24 +67,39 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 		!!stream?.isSupported &&
 		supportedSampleRates.value.includes(stream.samplerate);
 
+	const matchesTerm = (stream, term) =>
+		!term ||
+		(stream.name || "").toLowerCase().includes(term) ||
+		config.nameOf(stream.id).toLowerCase().includes(term) ||
+		(stream.origin?.address || "").toLowerCase().includes(term) ||
+		stream.id.includes(term);
+
 	const filtered = computed(() => {
 		const term = session.search.trim().toLowerCase();
+		const sender = session.senderFilter;
 		return streams.value.filter((stream) => {
-			const matches =
-				!term ||
-				(stream.name || "").toLowerCase().includes(term) ||
-				config.nameOf(stream.id).toLowerCase().includes(term) ||
-				(stream.origin?.address || "").toLowerCase().includes(term) ||
-				stream.id.includes(session.search.trim());
+			if (sender && stream.origin?.address !== sender) return false;
 			const visible = stream.isSupported || !config.settings.hideUnsupported;
-			return matches && visible;
+			return matchesTerm(stream, term) && visible;
 		});
 	});
 
 	const visibleCount = computed(() => filtered.value.length);
 
-	// One row per announcing device, counted in a single pass
-	const devices = computed(() => {
+	// Unfiltered tallies for the overview, which has to describe the whole
+	// network rather than whatever the Streams page is currently showing.
+	const playableCount = computed(
+		() => streams.value.filter((stream) => canPlay(stream)).length,
+	);
+	const unsupportedCount = computed(
+		() => streams.value.filter((stream) => !stream.isSupported).length,
+	);
+	const manualCount = computed(
+		() => streams.value.filter((stream) => stream.manual).length,
+	);
+
+	// One row per announcing sender, counted in a single pass
+	const senders = computed(() => {
 		const counts = new Map();
 		for (const stream of streams.value) {
 			const ip = stream.origin?.address;
@@ -98,18 +118,38 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 				};
 			})
 			.filter(
-				(device) =>
+				(sender) =>
 					!term ||
-					device.address.toLowerCase().includes(term) ||
-					device.name.toLowerCase().includes(term) ||
-					device.description.toLowerCase().includes(term),
+					sender.address.toLowerCase().includes(term) ||
+					sender.name.toLowerCase().includes(term) ||
+					sender.description.toLowerCase().includes(term),
 			);
+	});
+
+	const senderCount = computed(() => {
+		const addresses = new Set();
+		for (const stream of streams.value) {
+			if (stream.origin?.address) addresses.add(stream.origin.address);
+		}
+		return addresses.size;
+	});
+
+	const activeInterface = computed(() => {
+		const address = config.persistent.network?.currentInterface || "";
+		if (!address) return null;
+		return (
+			networkInterfaces.value.find((item) => item.address === address) || {
+				name: "",
+				address,
+			}
+		);
 	});
 
 	return {
 		streams,
 		networkInterfaces,
 		audioDevices,
+		lastUpdate,
 		applyStreams,
 		streamById,
 		displayName,
@@ -119,6 +159,11 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 		canPlay,
 		filtered,
 		visibleCount,
-		devices,
+		playableCount,
+		unsupportedCount,
+		manualCount,
+		senders,
+		senderCount,
+		activeInterface,
 	};
 });

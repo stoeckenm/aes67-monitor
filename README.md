@@ -15,7 +15,7 @@ AES67 Stream Monitor ist eine plattformübergreifende Audio-over-IP-Monitoring-A
   - **Audio:** Auswahl spezifischer Audio-Schnittstellen und Konfiguration der **RTP-Pufferung** (Jitter Buffer), um die Stabilität bei Netzwerkproblemen zu erhöhen.
 - **Folge System-Audio:** Möglichkeit, eine spezifische Audio-Ausgabe festzulegen oder der System-Audioausgabe zu folgen.
 - **Admin Mode:** Optionale Ausblendung aller Einstellungen, wenn der Admin-Modus deaktiviert ist.
-- **Favoriten-Verwaltung:** Eine spezielle Seite zum Hinzufügen und Verwalten von Streams mit benutzerfreundlichen Namen (`Friendly Names`).
+- **Kanal-Verwaltung:** Eine eigene Adminseite zum Einrichten der Kanäle, die Bediener sehen: Anzeigename, Quelle, Kanalzuordnung und Reihenfolge an einer Stelle, mit Vorschau der Bedienansicht.
 - **Datenpersistenz:** Getrennte Speicherung von **maschinenspezifischen Einstellungen** (`persistentData`) und **benutzerspezifischen UI-Einstellungen** (`userData`).
 
 ---
@@ -27,7 +27,7 @@ Die Anwendung basiert auf Electron und Vue 3 (Vite, Pinia, vue-i18n). Die kritis
 Die Oberfläche ist bewusst zweigeteilt:
 
 - **Bedienansicht:** ausschließlich große Kanal-Kacheln mit Abhören/Stopp. Keine technischen Details.
-- **Adminansicht:** vollständige Stream-, Geräte- und Einstellungsverwaltung, über das Schloss-Symbol und optional ein Passwort erreichbar.
+- **Adminansicht:** nach Aufgaben geordnete Navigation — Übersicht (läuft es?), Kanäle (was sehen Bediener?), Streams (was ist im Netz?), Sender (wer sendet?) und Einstellungen. Über das Schloss-Symbol und optional ein Passwort erreichbar.
 
 Die Backend-Logik ist unterteilt in:
 
@@ -41,7 +41,7 @@ Die maschinenweite Konfiguration liegt unter Windows in `%ProgramData%\StreamMon
 
 ## 📸 Screenshots
 
-Below are some screenshots showcasing the application's interface:
+Below are some screenshots showcasing the application's interface. **Hinweis:** diese Aufnahmen zeigen noch die Navigation vor der Überarbeitung des Adminbereichs.
 ![Screenshot](.doc/streams.png "Screenshot of streams overview page")
 ![Screenshot](.doc/details.png "Screenshot of stream details page")
 ![Screenshot](.doc/settings.png "Screenshot of settings page")

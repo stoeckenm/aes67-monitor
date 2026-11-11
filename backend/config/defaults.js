@@ -28,5 +28,7 @@ module.exports.userDataDefaults = {
 		sidebarCollapsed: false,
 		window: { width: 1280, height: 800, x: null, y: null, maximized: true },
 		favoritesOrder: [],
+		// Which settings tab was last open
+		settingsTab: "playback",
 	},
 };

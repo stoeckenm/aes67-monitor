@@ -1,6 +1,6 @@
 <template>
 	<div class="admin" :class="{ 'admin-collapsed': collapsed }">
-		<nav class="admin-nav" :aria-label="t('settings.title')">
+		<nav class="admin-nav" :aria-label="t('nav.overview')">
 			<button
 				class="admin-brand"
 				type="button"
@@ -36,10 +36,10 @@
 
 		<header class="admin-header">
 			<button
-				v-if="canGoBack"
+				v-if="session.canGoBack"
 				type="button"
 				class="btn btn-sm btn-outline-secondary me-2"
-				@click="session.setPage('streams')"
+				@click="session.goBack()"
 			>
 				<i class="bi bi-caret-left"></i> {{ t("common.back") }}
 			</button>
@@ -47,7 +47,7 @@
 
 			<div class="admin-header-actions">
 				<input
-					v-if="searchable"
+					v-if="session.searchable"
 					id="search-input"
 					v-model="session.search"
 					type="search"
@@ -60,6 +60,7 @@
 					type="button"
 					class="btn btn-sm btn-primary"
 					:title="t('streams.addManual')"
+					:aria-label="t('streams.addManual')"
 					@click="session.setPage('sdp')"
 				>
 					<i class="bi bi-plus-lg"></i>
@@ -79,67 +80,69 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import AdminLock from "../components/AdminLock.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
-import ChannelsView from "../views/ChannelsView.vue";
+import OverviewView from "../views/OverviewView.vue";
+import ChannelsAdminView from "../views/ChannelsAdminView.vue";
 import StreamsView from "../views/StreamsView.vue";
 import StreamDetailView from "../views/StreamDetailView.vue";
-import DevicesView from "../views/DevicesView.vue";
+import SendersView from "../views/SendersView.vue";
 import SettingsView from "../views/SettingsView.vue";
 import AddStreamView from "../views/AddStreamView.vue";
 import { useSessionStore } from "../stores/session";
 import { useConfigStore } from "../stores/config";
 import { useDiscoveryStore } from "../stores/discovery";
-import { useFavoritesStore } from "../stores/favorites";
+import { useChannelsStore } from "../stores/channels";
 
 const { t } = useI18n();
 const session = useSessionStore();
 const config = useConfigStore();
 const discovery = useDiscoveryStore();
-const favorites = useFavoritesStore();
+const channels = useChannelsStore();
 
 const collapsed = computed(() => config.user.settings.sidebarCollapsed);
 
+// Every badge means the same thing: how many rows that page will show. The
+// Streams badge used to be the unfiltered total while the page showed the
+// filtered list, so the two contradicted each other whenever a filter was on.
 const menu = computed(() => [
+	{ page: "overview", label: "nav.overview", icon: "bi-speedometer2" },
 	{
-		page: "favorites",
-		label: "nav.favorites",
+		page: "channels",
+		label: "nav.channels",
 		icon: "bi-star-fill",
-		badge: favorites.count,
+		badge: channels.count,
 	},
 	{
 		page: "streams",
 		label: "nav.streams",
 		icon: "bi-speaker",
-		badge: discovery.streams.length,
+		badge: discovery.visibleCount,
 	},
 	{
-		page: "devices",
-		label: "nav.devices",
+		page: "senders",
+		label: "nav.senders",
 		icon: "bi-hdd-network",
-		badge: discovery.devices.length,
+		badge: discovery.senders.length,
 	},
 	{ page: "settings", label: "nav.settings", icon: "bi-gear" },
 ]);
 
 const views = {
-	favorites: ChannelsView,
+	overview: OverviewView,
+	channels: ChannelsAdminView,
 	streams: StreamsView,
 	stream: StreamDetailView,
-	devices: DevicesView,
+	senders: SendersView,
 	settings: SettingsView,
 	sdp: AddStreamView,
 };
 
-const view = computed(() => views[session.page] || ChannelsView);
-
-const canGoBack = computed(() => ["stream", "sdp"].includes(session.page));
-const searchable = computed(() =>
-	["streams", "devices"].includes(session.page),
-);
+const view = computed(() => views[session.page] || OverviewView);
 
 const titles = {
-	favorites: "nav.favorites",
+	overview: "overview.title",
+	channels: "channels.admin.title",
 	streams: "streams.title",
-	devices: "devices.title",
+	senders: "senders.title",
 	settings: "settings.title",
 	sdp: "sdp.title",
 };
@@ -152,7 +155,7 @@ const title = computed(() => {
 			discovery.streamById(session.selectedStreamId),
 		);
 	}
-	return t(titles[session.page] || "nav.favorites");
+	return t(titles[session.page] || "overview.title");
 });
 </script>
 

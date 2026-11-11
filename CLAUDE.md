@@ -61,7 +61,13 @@ Request/response goes through `invoke`: `get-shared-config`, `verify-admin-passw
 `src/App.vue` picks a whole layout, it does not hide pieces of one:
 
 - `layouts/OperatorLayout.vue` → only `views/ChannelsView.vue` (large tiles, play/stop, offline state) plus the lock button. No navigation, no multicast addresses, no codecs.
-- `layouts/AdminLayout.vue` → sidebar navigation and the technical views.
+- `layouts/AdminLayout.vue` → sidebar navigation and the technical views: **Übersicht** (`OverviewView`), **Kanäle** (`ChannelsAdminView`), **Streams** (`StreamsView`), **Sender** (`SendersView`), **Einstellungen** (`SettingsView`), plus the `stream` and `sdp` detail pages.
+
+`ChannelsView.vue` is the operator's screen and takes no part in configuring anything. The admin side mounts it a second time as a read-only preview with `editable` set, which only enables dragging. It used to branch on `adminMode` in four places and serve both audiences at once.
+
+The admin navigation is ordered by task, not by data store, and every badge means the same thing: how many rows that page will show. The Streams badge was the unfiltered total while the page showed the filtered list, so the two contradicted each other whenever a filter was active.
+
+"Sender" is deliberately not "Geräte": the output device in the settings is a device too, and one word for both sent admins looking in the wrong place.
 
 `adminMode` lives in `stores/session.js` and is **never persisted**: a kiosk machine has to come back up locked. Without a configured password the lock opens without asking, which `SettingsView` states explicitly.
 
@@ -69,18 +75,19 @@ The password is verified in the main process (`backend/system/password.js`, scry
 
 ## Pinia stores (`src/stores/`)
 
-| store       | owns                                                                          |
-| ----------- | ----------------------------------------------------------------------------- |
-| `session`   | `adminMode`, current page, search term, `selectedStreamId`, last error        |
-| `config`    | `persistent` and `user` config, debounced saves, friendly names, device names |
-| `discovery` | live streams, network interfaces, audio devices, filtering                    |
-| `favorites` | favorite references, resolved against discovery                               |
-| `playback`  | what is playing, channel/media selection, play/stop                           |
+| store       | owns                                                                                           |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `session`   | `adminMode`, current and previous page, search term, `senderFilter`, `selectedStreamId`, error |
+| `config`    | `persistent` and `user` config, debounced saves, friendly names, sender names, settings tab    |
+| `discovery` | live streams, interfaces, audio devices, filtering, `senders`, overview tallies                |
+| `channels`  | channel references, resolved against discovery, order                                          |
+| `playback`  | what is playing, channel/media selection, play/stop                                            |
 
-Two invariants worth knowing:
+Three invariants worth knowing:
 
 - **Streams are merged by id**, never replaced (`discovery.applyStreams`). Object identity has to survive a discovery update, and the open detail page looks the stream up by `selectedStreamId` rather than holding a reference.
 - **Nothing writes to a store during render.** `channelOptions` is pure; defaults are set by a watcher in `playback.watchDiscovery()`. Filtering is a computed, and counts derive from it.
+- **The search term belongs to the page it was typed on.** `session.setPage` clears it, except when stepping into a detail page (`stream`, `sdp`) and back: a term that survived a page change left a filter active that nothing on screen explained, and losing it on every Details click made the table unusable. `senderFilter` has the same lifetime and is its own state, never a pre-filled search box.
 
 `config` installs deep watchers that save 300 ms after any mutation. `applyFromMain` suppresses them while a push from main is applied, otherwise the two bounce saves off each other.
 
@@ -101,11 +108,13 @@ Migrations run once on load and back up the previous file to `config.json.bak`: 
 
 ## Data shapes worth knowing
 
-- **Favorites** are references, `{ id, order }`. Live data is resolved in `stores/favorites.js`. A favorite whose stream is not announced stays visible and is marked offline — an operator needs to see that a channel is gone, not an empty page.
-- **Friendly names** live in `persistentData.streamNames` keyed by stream id, not on stream objects, which discovery replaces.
+- **Channels** are references, `{ id, order }`. Live data is resolved in `stores/channels.js`. A channel whose stream is not announced stays visible and is marked offline — an operator needs to see that a channel is gone, not an empty page. The **persisted key is still `persistentData.favorites`**: the vocabulary moved to "channel", the stored shape did not. Renaming the key would need a migration for nothing the user can see, and getting it wrong drops every configured channel on the first start after an update.
+- **Friendly names** live in `persistentData.streamNames` keyed by stream id, not on stream objects, which discovery replaces. The display name is editable both on the stream detail page and inline in the channel list, because it is the one field an operator actually reads.
 - **Manual streams** are persisted in `persistentData.manualStreams` and replayed into the worker after init. Main mirrors them _out of_ the worker's session list, and suspends mirroring until the replay has happened — a freshly respawned worker reports an empty list, and mirroring that would erase them.
 
 ## Settings presentation
+
+The tabs are grouped by subsystem, not by technology: **Wiedergabe** is everything affecting what comes out of this machine (output device, jitter buffer), **Netzwerk** everything affecting what it listens for (adapter, discovery timeout), **Zugang** the password. The active tab is persisted in `userData.settings.settingsTab`; a local `ref` reset it on every navigation.
 
 `src/config/presets.js` maps the stored values onto named choices without changing the stored shape: buffer levels (off/low/standard/stable, else `custom`) and discovery timeouts (60 s / 300 s / `0` = never). `effectiveBufferSize()` mirrors the worker's `outSampleFactor`, because the worker silently raises the jitter buffer for short packet times and the UI should not appear to lie.
 
@@ -133,7 +142,7 @@ A `sdpDeleteTimeout` of `0` means "keep until announced as deleted"; the worker 
 
 Vitest, `tests/`. Node environment by default; component tests opt into jsdom with `// @vitest-environment jsdom`. No E2E — Electron plus the native `audify` binding in CI is not worth it.
 
-Coverage is deliberately on the pure logic and the regressions: SDP support gating, the password module, config merges and migrations, the settings presets, favorite resolution, and a mount smoke test per shell (including that a stream name containing markup is escaped).
+Coverage is deliberately on the pure logic and the regressions: SDP support gating, the password module, config merges and migrations, the settings presets, channel resolution and ordering, the navigation guard predicate, the search and sender-filter lifetime in `session`, the relative-time label, locale key parity, and a mount smoke test per shell (including that a stream name containing markup is escaped, and that the admin pages keep playback configuration out of the streams table).
 
 **Audio playback and SAP discovery cannot be verified in CI or on a dev machine without AES67 traffic.** Verify against hardware or GStreamer streams per the README matrix and [philhartung/aoip-tester](https://github.com/philhartung/aoip-tester).
 
@@ -145,4 +154,5 @@ Coverage is deliberately on the pure logic and the regressions: SDP support gati
 - The CSP covers script sources but **not navigation**. `applyNavigationGuards()` denies `window.open`, blocks `will-navigate` to anything outside the app's own bundle and refuses webview attachment. It is registered on `web-contents-created` before the first window exists, so every `webContents` is covered. The predicate itself lives in `backend/system/navigation.js` (`isUrlWithinApp`), electron-free and unit tested, because getting it wrong either blanks the window or lets a crafted stream name navigate the renderer away.
 - `sandbox: true` is on, so `preload.js` must use `require("electron")` — the `electron/renderer` subpath is not available in a sandboxed preload.
 - **Electron 45 has no `postinstall`.** The binary is fetched lazily on the first `require("electron")`, i.e. on `npm start`, not during `npm install`. Behind a proxy that fails with `TypeError: fetch failed`, because `@electron/get` v5 downloads with Node's global `fetch` and undici ignores `HTTP_PROXY`/`HTTPS_PROXY`. Set `ELECTRON_GET_USE_PROXY=true` (its own opt-in for `EnvHttpProxyAgent`) or `NODE_USE_ENV_PROXY=1`. Both need the proxy to be in the **environment**; npm's own `.npmrc` proxy is not read. If the proxy wants NTLM/Kerberos, no env var helps: download `electron-v<version>-win32-x64.zip` from the GitHub release in a browser and drop it into `%LOCALAPPDATA%\electron\Cache\<sha256 of the release URL>\`, then `npm start` unpacks it without touching the network. `npm run build` is unaffected — electron-builder passes its own proxy agent.
+- **No bare `@` or `|` in a locale string.** vue-i18n reads `@` as its linked-message syntax and `|` as the plural separator, and a message that fails to compile **throws while rendering**. `"{count} Kanäle @ {rate} Hz"` did exactly that on the stream detail page for any stream carrying an rtp entry. `tests/locales.test.js` guards both characters along with key parity.
 - The `overrides` in `package.json` are load-bearing, not cosmetic. `audify` pins `cmake-js@^7.3.1`, which pins `tar@^6.2.0`, for which the advisories have no upstream fix; tar is only used by `cmake-js/lib/downloader.js` to unpack the node headers at install time, and `^7.5.22` was verified against that exact `tar.extract()` call pattern. The `minimatch` and `glob` entries are scoped to the affected ranges so the many consumers of minimatch 3/5 and glob 7 are left alone. **Never run `npm audit fix --force`** here: it proposes downgrades, electron-builder 26 to 24 and ESLint 10 to 9.

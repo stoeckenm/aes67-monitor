@@ -19,6 +19,54 @@
 				<div class="form-text">{{ t("stream.displayNameHint") }}</div>
 			</div>
 
+			<fieldset v-if="stream.isSupported" class="mb-3">
+				<legend class="h6">{{ t("stream.playbackGroup") }}</legend>
+
+				<div v-if="(stream.media || []).length > 1" class="mb-2">
+					<label class="form-label" for="media-choice">
+						{{ t("stream.mediaChoice") }}
+					</label>
+					<select
+						id="media-choice"
+						v-model="playback.mediaByStream[stream.id]"
+						class="form-select"
+						:disabled="playing"
+					>
+						<option
+							v-for="(media, index) in stream.media"
+							:key="index"
+							:value="index"
+						>
+							{{ media.connection?.ip?.split("/")[0] || stream.mcast }}:{{
+								media.port
+							}}
+						</option>
+					</select>
+				</div>
+
+				<label class="form-label" for="channel-mapping">
+					{{ t("stream.mapping") }}
+				</label>
+				<select
+					id="channel-mapping"
+					v-model="playback.channelByStream[stream.id]"
+					class="form-select"
+					:disabled="playing"
+				>
+					<option
+						v-for="option in playback.channelOptions(stream)"
+						:key="option.value"
+						:value="option.value"
+					>
+						{{ channelLabel(option) }}
+					</option>
+				</select>
+				<div class="form-text">
+					{{ t("stream.mappingHint") }}
+					<span v-if="playing">{{ t("stream.lockedWhilePlaying") }}</span>
+				</div>
+			</fieldset>
+
 			<dl class="detail-list">
 				<dt>{{ t("stream.id") }}</dt>
 				<dd>{{ stream.id }}</dd>
@@ -46,7 +94,7 @@
 				</template>
 
 				<template v-if="effectiveBuffer">
-					<dt>{{ t("settings.audio.stability") }}</dt>
+					<dt>{{ t("stream.bufferLabel") }}</dt>
 					<dd>
 						{{ t("stream.effectiveBuffer", { count: effectiveBuffer }) }}
 					</dd>
@@ -219,6 +267,13 @@ const rawRows = computed(() => {
 	);
 });
 
+const playing = computed(() => playback.isPlaying(session.selectedStreamId));
+
+const channelLabel = (option) =>
+	option.kind === "stereo"
+		? t("streams.channelStereo", { first: option.first, second: option.second })
+		: t("streams.channelMono", { channel: option.channel });
+
 const codecLabel = (codec) => {
 	if (codec === "L24") return t("stream.pcm24");
 	if (codec === "L16") return t("stream.pcm16");
@@ -244,7 +299,7 @@ const remove = () => {
 	const id = session.selectedStreamId;
 	if (playback.isPlaying(id)) playback.stop();
 	bridge.send({ type: "delete", data: id });
-	session.setPage("streams");
+	session.goBack();
 };
 </script>
 

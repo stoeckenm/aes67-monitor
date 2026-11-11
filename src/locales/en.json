@@ -2,22 +2,17 @@
 	"app": {
 		"name": "Stream Monitor"
 	},
-	"operator": {
-		"title": "Channels",
-		"empty": "No channels have been set up yet.",
-		"emptyHint": "Please ask your technical staff.",
-		"waiting": "Looking for channels …",
-		"offline": "Currently not on the network",
-		"listen": "Listen",
-		"stop": "Stop",
-		"playing": "Playing",
-		"unsupportedFormat": "Format not supported by the output device",
-		"volume": "Volume"
+	"common": {
+		"back": "Back",
+		"close": "Close",
+		"yes": "Yes",
+		"no": "No"
 	},
 	"nav": {
-		"favorites": "Channels",
+		"overview": "Overview",
+		"channels": "Channels",
 		"streams": "Streams",
-		"devices": "Devices",
+		"senders": "Senders",
 		"settings": "Settings",
 		"unlock": "Admin mode",
 		"lock": "Exit admin",
@@ -26,6 +21,75 @@
 		"passwordWrong": "Wrong password",
 		"submit": "Unlock"
 	},
+	"overview": {
+		"title": "Overview",
+		"network": "Network",
+		"interface": "Network adapter",
+		"interfaceNone": "No network adapter selected",
+		"discovery": "Discovered streams",
+		"lastUpdate": "Last announcement",
+		"lastUpdateNever": "None received yet",
+		"justNow": "just now",
+		"secondsAgo": "{count} s ago",
+		"minutesAgo": "{count} min ago",
+		"streamsTotal": "Streams in total",
+		"playable": "of those playable",
+		"unsupported": "not playable",
+		"manual": "added by hand",
+		"senders": "Senders on the network",
+		"channels": "Channels",
+		"channelsConfigured": "set up",
+		"channelsOnline": "on the network",
+		"channelsOffline": "missing",
+		"playback": "Playback",
+		"output": "Output device",
+		"outputFollowSystem": "Follows the system default",
+		"outputNone": "No device available",
+		"playingNow": "Playing now",
+		"playingNothing": "Nothing",
+		"goStreams": "View streams",
+		"goChannels": "Set up channels",
+		"goSenders": "View senders",
+		"goSettings": "Open settings",
+		"hintNoInterface": "No network adapter is selected. Without one, no streams are found.",
+		"hintNoStreams": "No announcements have arrived yet. This can take a few seconds.",
+		"hintNoChannels": "No channels have been set up yet. Operators see an empty page.",
+		"hintNoOutput": "No output device is available."
+	},
+	"channels": {
+		"title": "Channels",
+		"empty": "No channels have been set up yet.",
+		"emptyHint": "Please ask your technical staff.",
+		"offline": "Currently not on the network",
+		"listen": "Listen",
+		"stop": "Stop",
+		"playing": "Playing",
+		"unsupportedFormat": "Format not supported by the output device",
+		"admin": {
+			"title": "Set up channels",
+			"intro": "Operators see these channels, in this order.",
+			"list": "List",
+			"preview": "Preview",
+			"previewHint": "This is what the operator view looks like. The order can be dragged here.",
+			"position": "No.",
+			"name": "Display name",
+			"namePlaceholder": "Name for operators",
+			"nameFallback": "no name of its own",
+			"source": "Source",
+			"sender": "Sender",
+			"mapping": "Channel mapping",
+			"state": "State",
+			"online": "On the network",
+			"offline": "Not on the network",
+			"notPlayable": "Not playable",
+			"up": "Move up",
+			"down": "Move down",
+			"remove": "Remove channel",
+			"details": "Stream details",
+			"empty": "No channels set up yet.",
+			"emptyHint": "Take a stream as a channel on the Streams page."
+		}
+	},
 	"streams": {
 		"title": "Streams",
 		"empty": "No streams found.",
@@ -33,15 +97,16 @@
 		"search": "Search",
 		"addManual": "Add a stream via SDP",
 		"showUnsupported": "Show streams that cannot be played",
+		"senderFilter": "Sender {sender} only",
+		"senderFilterClear": "Clear filter",
 		"columns": {
 			"displayName": "Display name",
 			"name": "Stream name",
-			"tags": "Tags",
+			"tags": "Properties",
 			"info": "Description",
-			"address": "Device address",
+			"sender": "Sender",
 			"format": "Format",
-			"multicast": "Multicast",
-			"channel": "Channel"
+			"state": "State"
 		},
 		"tags": {
 			"dante": "Dante",
@@ -51,47 +116,18 @@
 		},
 		"notAvailable": "Not available",
 		"notSupported": "Cannot be played",
-		"favorite": "Add to channels",
-		"unfavorite": "Remove from channels",
+		"playable": "Playable",
+		"wrongSampleRate": "Sample rate not supported by the output device",
+		"addChannel": "Take as a channel",
+		"removeChannel": "Remove from the channels",
 		"details": "Details",
 		"channelMono": "{channel} mono",
 		"channelStereo": "{first} + {second} stereo"
 	},
-	"stream": {
-		"displayName": "Display name",
-		"displayNamePlaceholder": "Name shown to operators",
-		"displayNameHint": "This name appears in the operator view.",
-		"id": "Stream id",
-		"address": "Address",
-		"clockSource": "Clock source",
-		"tags": "Tags",
-		"group": "Stream group",
-		"media": "Media stream",
-		"protocol": "Protocol",
-		"sourceFilter": "Source filter",
-		"format": "Format",
-		"codec": "Codec",
-		"packetTime": "Packet time",
-		"description": "Description",
-		"channels": "{count} channels @ {rate} Hz",
-		"pcm24": "24 bit PCM",
-		"pcm16": "16 bit PCM",
-		"rawSdp": "SDP announcement",
-		"copySdp": "Copy SDP",
-		"copied": "Copied",
-		"delete": "Remove stream",
-		"effectiveBuffer": "Buffer in effect: {count} packets"
-	},
-	"sdp": {
-		"title": "Add stream",
-		"hint": "Paste the SDP data of the stream here.",
-		"announce": "Announce this stream on the network via SAP",
-		"save": "Add",
-		"invalid": "The SDP data could not be read."
-	},
-	"devices": {
-		"title": "Devices",
-		"empty": "No devices found.",
+	"senders": {
+		"title": "Senders",
+		"intro": "Devices announcing streams on the network.",
+		"empty": "No senders found.",
 		"name": "Name",
 		"address": "Address",
 		"streamCount": "Streams",
@@ -100,22 +136,59 @@
 		"save": "Save",
 		"filter": "Show streams"
 	},
+	"stream": {
+		"displayName": "Display name",
+		"displayNamePlaceholder": "Name for operators",
+		"displayNameHint": "This name appears in the operator view.",
+		"id": "Stream id",
+		"address": "Address",
+		"clockSource": "Clock source",
+		"tags": "Properties",
+		"media": "Media stream",
+		"protocol": "Protocol",
+		"sourceFilter": "Source filter",
+		"format": "Format",
+		"codec": "Codec",
+		"packetTime": "Packet time",
+		"description": "Description",
+		"channels": "{count} channels, {rate} Hz",
+		"pcm24": "24 bit PCM",
+		"pcm16": "16 bit PCM",
+		"rawSdp": "SDP announcement",
+		"copySdp": "Copy SDP",
+		"copied": "Copied",
+		"delete": "Remove stream",
+		"playbackGroup": "Playback",
+		"mediaChoice": "Media stream in use",
+		"mapping": "Channel mapping",
+		"mappingHint": "Which channels of the stream go to the two outputs.",
+		"lockedWhilePlaying": "Cannot be changed while playing.",
+		"bufferLabel": "Buffering in effect",
+		"effectiveBuffer": "{count} packets"
+	},
+	"sdp": {
+		"title": "Add a stream",
+		"hint": "Paste the stream's SDP data here.",
+		"announce": "Announce the stream on the network via SAP",
+		"save": "Add",
+		"invalid": "The SDP data could not be read."
+	},
 	"settings": {
 		"title": "Settings",
 		"tabs": {
-			"audio": "Audio",
+			"playback": "Playback",
 			"network": "Network",
 			"access": "Access"
 		},
-		"audio": {
+		"playback": {
 			"output": "Output device",
-			"followSystem": "Always use the Windows default device",
+			"followSystem": "Always use the system's default device",
 			"followSystemHint": "The monitor then follows the system output automatically.",
 			"noDevice": "No output device found.",
 			"current": "Active",
-			"systemDefault": "Windows default",
+			"systemDefault": "System default",
 			"stability": "Behaviour during network trouble",
-			"stabilityHint": "More buffering survives disruptions better but delays playback.",
+			"stabilityHint": "More buffering survives trouble better but delays playback more.",
 			"levels": {
 				"off": "No buffering",
 				"low": "Shortest delay",
@@ -124,7 +197,7 @@
 				"custom": "Custom value"
 			},
 			"expert": "Expert value",
-			"expertHint": "Buffer in packets. The monitor raises this automatically for very short packet times.",
+			"expertHint": "Buffering in packets. For very short packet times the monitor raises this automatically.",
 			"packets": "packets"
 		},
 		"network": {
@@ -138,8 +211,7 @@
 				"default": "After 5 minutes",
 				"never": "Never hide",
 				"custom": "Custom value"
-			},
-			"seconds": "seconds"
+			}
 		},
 		"access": {
 			"password": "Admin password",
@@ -156,16 +228,10 @@
 	"errors": {
 		"title": "Notice",
 		"dismiss": "Dismiss",
-		"workerRestarted": "An internal service was restarted. Playback may have dropped out briefly.",
-		"workerFailure": "An internal service reported a problem.",
+		"workerRestarted": "An internal service was restarted. Playback may have cut out briefly.",
+		"workerFailure": "An internal service is failing.",
 		"configUnwritable": "The settings could not be saved.",
-		"noNetworkInterface": "No network adapter available. Streams cannot be received.",
+		"noNetworkInterface": "No network adapter available. No streams can be received.",
 		"noAudioDevice": "No output device available."
-	},
-	"common": {
-		"back": "Back",
-		"close": "Close",
-		"yes": "Yes",
-		"no": "No"
 	}
 }
